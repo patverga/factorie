@@ -41,11 +41,11 @@ class ForwardPosTagger extends DocumentAnnotator {
     logger.debug("ForwardPosTagger loading from "+url)
     deserialize(stream)
   }
-  
+
   object FeatureDomain extends CategoricalVectorDomain[String]
   class FeatureVariable(t:Tensor1) extends BinaryFeatureVectorVariable[String] { def domain = FeatureDomain; set(t)(null) } // Only used for printing diagnostics
   lazy val model = new LinearMulticlassClassifier(PennPosDomain.size, FeatureDomain.dimensionSize)
-  
+
   /** Local lemmatizer used for POS features. */
   protected def lemmatize(string:String): String = cc.factorie.app.strings.replaceDigits(string)
   /** A special IndexedSeq[String] that will return "null" for indices out of bounds, rather than throwing an error */
@@ -85,7 +85,7 @@ class ForwardPosTagger extends DocumentAnnotator {
         }
         begin = i
       }
-      
+
       // deal with last chunk of sentences
       if(begin < tokens.size){
     	val docTokens = tokens.slice(begin,tokens.size)
@@ -99,7 +99,7 @@ class ForwardPosTagger extends DocumentAnnotator {
       }
       docWordCounts = docWordCounts.filter(_._2 > cutoff)
     }
-    
+
     def computeAmbiguityClasses(tokens: Iterable[Token]) = {
       val posCounts = collection.mutable.HashMap[String,Array[Int]]()
       val wordCounts = collection.mutable.HashMap[String,Double]()
@@ -132,7 +132,7 @@ class ForwardPosTagger extends DocumentAnnotator {
       })
     }
   }
-  
+
   def features(token:Token, lemmaIndex:Int, lemmas:Lemmas): SparseBinaryTensor1 = {
     def lemmaStringAtOffset(offset:Int): String = "L@"+offset+"="+lemmas.docFreqLc(lemmaIndex + offset) // this is lowercased
     def wordStringAtOffset(offset:Int): String = "W@"+offset+"="+lemmas.docFreq(lemmaIndex + offset) // this is not lowercased, but still has digits replaced
@@ -179,7 +179,7 @@ class ForwardPosTagger extends DocumentAnnotator {
     addFeature(wp2)
     addFeature(wp3)
     // The paper also includes wp3 and wm3
-    
+
     // not in ClearNLP
 //    addFeature(lp3)
 //    addFeature(lp2)
@@ -188,7 +188,7 @@ class ForwardPosTagger extends DocumentAnnotator {
 //    addFeature(lm1)
 //    addFeature(lm2)
 //    addFeature(lm3)
-    
+
     addFeature(pm3)
     addFeature(pm2)
     addFeature(pm1)
@@ -204,10 +204,10 @@ class ForwardPosTagger extends DocumentAnnotator {
     addFeature(pm2+pm1)
     addFeature(ap1+ap2)
     addFeature(pm1+ap1)
-    
+
 //    addFeature(pm1+a0) // Not in http://www.aclweb.org/anthology-new/P/P12/P12-2071.pdf
 //    addFeature(a0+ap1) // Not in http://www.aclweb.org/anthology-new/P/P12/P12-2071.pdf
-    
+
     addFeature(lm2+lm1+l0)
     addFeature(lm1+l0+lp1)
     addFeature(l0+lp1+lp2)
@@ -217,24 +217,24 @@ class ForwardPosTagger extends DocumentAnnotator {
     addFeature(pm1+a0+ap1)
     addFeature(pm2+pm1+ap1)
     addFeature(pm1+ap1+ap2)
-    
+
 //    addFeature(a0+ap1+ap2) // Not in http://www.aclweb.org/anthology-new/P/P12/P12-2071.pdf
-    
+
     addFeature(takePrefix(W, 1))
     addFeature(takePrefix(W, 2))
     addFeature(takePrefix(W, 3))
-    
+
     // not in ClearNLP
 //    addFeature("PREFIX2@1="+takePrefix(Wp1, 2))
 //    addFeature("PREFIX3@1="+takePrefix(Wp1, 3))
 //    addFeature("PREFIX2@2="+takePrefix(Wp2, 2))
 //    addFeature("PREFIX3@2="+takePrefix(Wp2, 3))
-    
+
     addFeature(takeSuffix(W, 1))
     addFeature(takeSuffix(W, 2))
     addFeature(takeSuffix(W, 3))
     addFeature(takeSuffix(W, 4))
-    
+
     // not in ClearNLP
 //    addFeature("SUFFIX1@1="+takeRight(Wp1, 1))
 //    addFeature("SUFFIX2@1="+takeRight(Wp1, 2))
@@ -275,7 +275,7 @@ class ForwardPosTagger extends DocumentAnnotator {
       }
     }
   }
-  
+
   def predict(tokens: Seq[Token]): Unit = {
     val lemmaStrings = lemmas(tokens)
     for (index <- 0 until tokens.length) {
@@ -293,7 +293,7 @@ class ForwardPosTagger extends DocumentAnnotator {
   def predict(span: TokenSpan): Unit = predict(span.tokens)
   def predict(document: Document): Unit = {
     for (section <- document.sections)
-      if (section.hasSentences) document.sentences.foreach(predict(_))  // we have Sentence boundaries 
+      if (section.hasSentences) document.sentences.foreach(predict(_))  // we have Sentence boundaries
       else predict(section.tokens) // we don't // TODO But if we have trained with Sentence boundaries, won't this hurt accuracy?
   }
 
@@ -434,6 +434,7 @@ class ForwardPosOptions extends cc.factorie.util.DefaultCmdOptions with SharedNL
   val trainDir = new CmdOption("train-dir", "", "FILENAME", "Directory containing OWPL training files (.dep.pmd).")
   val testFiles = new CmdOption("test-files", "", "STRING", "comma-separated list of OWPL test files (.dep.pmd).")
   val trainFiles = new CmdOption("train-files", "", "STRING", "comma-separated list of OWPL training files (.dep.pmd).")
+  val dataLoader  =   new CmdOption("data-loader", "ontonotes", "STRING", "Data loader for this format.")
   val l1 = new CmdOption("l1", 0.000001, "FLOAT", "l1 regularization weight")
   val l2 = new CmdOption("l2", 0.00001, "FLOAT", "l2 regularization weight")
   val rate = new CmdOption("rate", 1.0, "FLOAT", "base learning rate")
@@ -507,15 +508,31 @@ object ForwardPosTrainer extends HyperparameterMain {
     }else if (opts.testFiles.wasInvoked){
       testFileList =  opts.testFiles.value.split(",")
     }
-    
+
     val trainDocs = trainFileList.map(fname => {
-	  if(opts.owpl.value) load.LoadOWPL.fromFilename(fname, pennPosLabelMaker).head
-	  else load.LoadOntonotes5.fromFilename(fname).head
-	})
+      if (opts.owpl.value) load.LoadOWPL.fromFilename(fname, pennPosLabelMaker).head
+      else {
+        opts.dataLoader.value match {
+          case "ontonotes" => load.LoadOntonotes5.fromFilename(fname).head
+          case "conll2002" => load.LoadConll2002(BILOU = true).fromFilename(fname).head
+          case "conll2003" => load.LoadConll2003(BILOU = true).fromFilename(fname).head
+          case "conll2008" => load.LoadConll2008.fromFilename(fname).head
+          case "spanishconll2008" => load.SpanishConll2008.fromFilename(fname).head
+        }
+      }
+    })
     val testDocs = testFileList.map(fname => {
-	  if(opts.owpl.value) load.LoadOWPL.fromFilename(fname, pennPosLabelMaker).head
-	  else load.LoadOntonotes5.fromFilename(fname).head
-	})
+      if (opts.owpl.value) load.LoadOWPL.fromFilename(fname, pennPosLabelMaker).head
+      else {
+        opts.dataLoader.value match {
+          case "ontonotes" => load.LoadOntonotes5.fromFilename(fname).head
+          case "conll2002" => load.LoadConll2002(BILOU = true).fromFilename(fname).head
+          case "conll2003" => load.LoadConll2003(BILOU = true).fromFilename(fname).head
+          case "conll2008" => load.LoadConll2008.fromFilename(fname).head
+          case "spanishconll2008" => load.SpanishConll2008.fromFilename(fname).head
+        }
+      }
+    })
 
     //for (d <- trainDocs) println("POS3.train 1 trainDoc.length="+d.length)
     println("Read %d training tokens from %d files.".format(trainDocs.map(_.tokenCount).sum, trainDocs.size))
