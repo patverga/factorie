@@ -1,4 +1,4 @@
-package cc.factorie.app.nlp.segment
+package cc.factorie.app.nlp.segment.es
 
 import cc.factorie.util.JavaHashMap
 
@@ -94,7 +94,7 @@ import cc.factorie.util.JavaHashMap
 
   def tok(): Object = tok(yytext(), false)
 
-  def tok(txt: String): Object = (txt, yychar, yylength, false)
+  def tok(txt: String): Object = tok(txt, false)
 
   def tok(isSgml: Boolean): Object = tok(yytext(), isSgml)
 
