@@ -98,14 +98,13 @@ import cc.factorie.util.JavaHashMap
 
   def tok(isSgml: Boolean): Object = tok(yytext(), isSgml)
 
-  def tok(txt: String, isSgml: Boolean): Object = (txt, yychar, yylength, isSgml, false, false, false)
+  def tok(txt: String, isSgml: Boolean): Object = tok(txt, isSgml, false, false, false)
 
-  def tok(txt: String, isSgml: Boolean, contraction :Boolean, verb : Boolean, compound : Boolean)
-  : Object = (txt, yychar, yylength, isSgml, contraction, verb, compound)
+  def tok(txt: String, isSgml: Boolean, contraction :Boolean, verb : Boolean, compound : Boolean) : Object = (txt, yychar, yylength, isSgml, contraction, verb, compound)
 
-  def contraction(): Object = tok(yytext(), yychar, yylength, false, true, false, false)
-  def verb(): Object = tok(yytext(), yychar, yylength, false, false, true, false)
-  def compound(): Object = tok(yytext(), yychar, yylength, false, false, false, true)
+  def contraction(): Object = tok(yytext(), false, true, false, false)
+  def verb(): Object = tok(yytext(), false, false, true, false)
+  def compound(): Object = tok(yytext(), false, false, false, true)
 
   /* Uncomment below for useful debugging output */
   def printDebug(tok: String) = {}//println(s"$tok: |${yytext()}|")
@@ -200,8 +199,8 @@ AP2 = {AP}|&lsquo;|[`\u0091\u2018\u201B]
 //CONTRACTION = ([nN]{AP}[tT]|(?<=\p{L}){AP}(d|D|s|S|m|M|re|RE|ve|VE|ll|LL)(?!\p{L}))
 //CONTRACTION = [nN]{AP}[tT]|{AP}([dDsSmM]|re|RE|ve|VE|ll|LL)
 
-/*TODO remove
-/* words that include an apostrophe, like O'Reilly, C'mon, 'n', Shi'ite, 20's, N'goma */
+///*TODO remove
+///* words that include an apostrophe, like O'Reilly, C'mon, 'n', Shi'ite, 20's, N'goma */
 APWORD = {AP}nt|{AP}n({AP})?|{AP2}em|[OoDdLl]{AP}{LETTER}+|[Oo]{AP2}clock|ma{AP2}am|add{AP2}l|[Cc]{AP2}mon|{AP2}cause|{AP}till?|ol{AP}|Dunkin{AP}|{AP}[1-9]0s|N{AP}|\p{L}\p{Ll}*[aeiou]{AP}[aeiou]\p{Ll}*
 
 /* Poorly formed initials, as in "A.B". This must come before 'initials' or else 'initials' will capture the prefix. */
@@ -219,7 +218,8 @@ ORDINALS = [0-9]{1,4}(st|nd|rd|th)
 QUOTE = ''|``|[\u2018\u2019\u201A\u201B\u201C\u201D\u0091\u0092\u0093\u0094\u201A\u201E\u201F\u2039\u203A\u00AB\u00BB]{1,2}|[\"\u201C\u201D\p{Pf}]|&(quot|[rl][ad]quo);|{AP2}{2}
 
 HYPHEN = [-_\u058A\u2010\u2011]
-HYPHENS = \-+
+
+// TODO these seemed english-y so i removed them, maybe not?
 
 /* List of prefixes taken from http://en.wikipedia.org/wiki/English_prefixes with the addition of "e", "uh" and "x" from Ontonotes examples. */
 /* TODO these should be case-insensitive */
@@ -399,7 +399,7 @@ wan / na { printDebug("wanna"); tok() }
 {VB_ATTACHED_PRON} |
 {VB_2PP_PRON}           { verb() }
 
-{COMPOUND_NOSPLIT}      { txt() }
+{COMPOUND_NOSPLIT}      { tok() }
 
 {COMPOUND}              { compound() }
 
@@ -459,7 +459,7 @@ wan / na { printDebug("wanna"); tok() }
 -LSB- { printDebug("-LSB-"); if(undoPennParens) tok(NORMALIZED_LSB) else tok() }
 -RSB- { printDebug("-RSB-"); if(undoPennParens) tok(NORMALIZED_RSB) else tok() }
 
-{CONTRACTED_WORD} / {CONTRACTION} { printDebug("CONTRACTED_WORD"); tok() }
+/*{CONTRACTED_WORD} / {CONTRACTION} { printDebug("CONTRACTED_WORD"); tok() }*/
 
 {CAPS} / [^\p{Ll}] { printDebug("CAPS"); tok() }
 

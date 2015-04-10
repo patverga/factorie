@@ -2,7 +2,7 @@ package cc.factorie.app.nlp.segment.es
 
 import java.io.StringReader
 
-import cc.factorie.app.nlp.segment.{IsSgmlTag, DeterministicLexerTokenizer, EnglishLexer, PlainNormalizedTokenString}
+import cc.factorie.app.nlp.segment.{IsSgmlTag, DeterministicLexerTokenizer, PlainNormalizedTokenString}
 import cc.factorie.app.nlp.{Document, Token}
 
 import scala.collection.mutable
@@ -22,11 +22,11 @@ object SpanishDeterministicLexerTokenizer extends DeterministicLexerTokenizer {
       val lexer =
       // here we make sure that if normalize = false, we really don't normalize anything
         if(normalize)
-          new EnglishLexer(reader, tokenizeSgml, tokenizeNewline, tokenizeWhitespace, tokenizeAllDashedWords, abbrevPrecedesLowercase,
+          new SpanishLexer(reader, tokenizeSgml, tokenizeNewline, tokenizeWhitespace, tokenizeAllDashedWords, abbrevPrecedesLowercase,
             normalizeQuote, normalizeApostrophe, normalizeCurrency, normalizeAmpersand, normalizeFractions, normalizeEllipsis,
             undoPennParens, unescapeSlash, unescapeAsterisk, normalizeMDash, normalizeDash, normalizeHtmlSymbol, normalizeHtmlAccent)
         else
-          new EnglishLexer(reader, tokenizeSgml, tokenizeNewline, tokenizeWhitespace, tokenizeAllDashedWords, abbrevPrecedesLowercase,
+          new SpanishLexer(reader, tokenizeSgml, tokenizeNewline, tokenizeWhitespace, tokenizeAllDashedWords, abbrevPrecedesLowercase,
             false, false, false, false, false, false, false, false, false, false, false, false, false)
 
       // tokenString, posStart, tokenLength, isSgml, isContraction, isVerb, isCompound
@@ -60,7 +60,8 @@ object SpanishDeterministicLexerTokenizer extends DeterministicLexerTokenizer {
    *
    */
   def processContraction(token : (String, Int, Int, Boolean, Boolean, Boolean, Boolean)) : (String, Int, Int, Boolean, Boolean, Boolean, Boolean) = {
-    val (word, start, length, _, _, _, _,) = token
+    val word = token._1
+    val start = token._2
 
     val lowered = word.toLowerCase
     val (first, firstLength, second, secondLength) = if (lowered.equals("del") || lowered.equals("al")) {
@@ -101,7 +102,8 @@ object SpanishDeterministicLexerTokenizer extends DeterministicLexerTokenizer {
    * Splits a compound marked by the lexer.
    */
   def processCompound(token : (String, Int, Int, Boolean, Boolean, Boolean, Boolean)) : (String, Int, Int, Boolean, Boolean, Boolean, Boolean) = {
-    val (word, start, length, _, _, _, _,) = token
+    val word = token._1
+    val start = token._2
     val parts = word.replaceAll("\\-", " - ").split("\\s+")
     //TODO theres probably a nice scala way to do this, oh well
     var st = start
