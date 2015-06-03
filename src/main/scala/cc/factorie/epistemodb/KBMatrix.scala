@@ -63,6 +63,17 @@ trait KBMatrix[KBMatrixT <: KBMatrix[KBMatrixT, RowT, ColT], RowT, ColT] {
     }
   }
 
+  def nnzForCols(testCols: Set[ColT]): Int = {
+    var accumNnz = 0
+    for (col <- testCols) {
+      if (__colMap.containsKey(col)) {
+        val cNr = __colMap.keyToIndex(col)
+        accumNnz += matrix.cols.get(cNr).get.size
+      }
+    }
+    accumNnz
+  }
+
   def hasSameContent(m2: KBMatrixT): Boolean = {
     m2.numRows() == numRows() &&
       m2.numCols() == numCols() &&
@@ -111,7 +122,10 @@ trait KBMatrix[KBMatrixT <: KBMatrix[KBMatrixT, RowT, ColT], RowT, ColT] {
     (trainKB, devKB, testKB)
   }
 
-  /* use prune(0,0) for no pruning
+  /*
+ * The pruning parameters specify the number of non-zero cells per row / column up to which rows/columns are disregarded.
+ *
+ * use prune(0,0) for no pruning
  * use prune(2,1) for moderate pruning on kb matrices
  */
   def prune(tRow: Int = 2, tCol: Int = 2): KBMatrixT = {

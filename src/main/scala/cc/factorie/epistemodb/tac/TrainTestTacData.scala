@@ -11,9 +11,11 @@ class TrainTestTacDataOptions extends cc.factorie.util.DefaultCmdOptions {
   val tacData = new CmdOption("tac-data", "", "FILE", "tab separated file with TAC training data")
   val dim = new CmdOption("dim", 100, "INT", "dimensionality of data")
   val stepsize = new CmdOption("stepsize", 0.1, "DOUBLE", "step size")
-  val maxNorm =  new CmdOption("max-norm", 1.0, "DOUBLE", "maximum l2-norm for vectors")
+  val maxNorm =  new CmdOption("max-norm", 3.0, "DOUBLE", "maximum l2-norm for vectors")
   val useMaxNorm =  new CmdOption("use-max-norm", true, "BOOLEAN", "whether to use maximum l2-norm for vectors")
   val regularizer = new CmdOption("regularizer", 0.01, "DOUBLE", "regularizer")
+
+  val patternsOut = new CmdOption("patterns-out", "", "FILE", "Top-scored columns, for test columns.")
 }
 
 
@@ -67,7 +69,8 @@ object TrainTestTacData {
       opts.parse(args)
 
       val tReadStart = System.currentTimeMillis
-      val kb = EntityRelationKBMatrix.fromTsv(opts.tacData.value).prune(2,1)
+//      val kb = EntityRelationKBMatrix.fromTsv(opts.tacData.value).prune(2,1)
+      val kb = StringStringKBMatrix.fromTsv(opts.tacData.value).prune(2,1)
       val tRead = (System.currentTimeMillis - tReadStart)/1000.0
       println(f"Reading from file and pruning took $tRead%.2f s")
 
@@ -114,6 +117,11 @@ object TrainTestTacData {
 
       result = model.similaritiesAndLabels(trainKb.matrix, testKb.matrix)
       println("MAP after 200 iterations: " + Evaluator.meanAveragePrecision(result))
+
+      if (!opts.patternsOut.value.isEmpty) {
+        kb.writeTopPatterns(testCols, model, 0.5, opts.patternsOut.value)
+      }
+
     }
 
 }
