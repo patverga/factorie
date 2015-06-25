@@ -41,7 +41,7 @@ abstract class BprUniversalSchemaTrainer {
       // random order, for bpr
       //println("shuffling ...")
       // : Array[mutable.Iterable[UniversalSchemaModel.Row]]
-      val batchedRows = random.shuffle(matrix.rows).toSeq.grouped(1000).toArray
+      val batchedRows = random.shuffle(matrix.rowToColAndVal).toSeq.grouped(1000).toArray
       //println("... done.")
 
       Threading.parForeach(batchedRows, pool)(rowBatch => {
@@ -54,7 +54,7 @@ abstract class BprUniversalSchemaTrainer {
         objective += thisObjective
       })
       if (t == printNext || t == 0 || t == numIters - 1) {
-        println("finished iter " + t + " objective = " + objective / matrix.rows.size)
+        println("finished iter " + t + " objective = " + objective / matrix.rowToColAndVal.size)
         printNext *= 2
       }
       objective

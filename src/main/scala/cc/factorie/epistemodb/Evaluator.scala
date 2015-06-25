@@ -24,6 +24,26 @@ object Evaluator {
     mapStats._3
   }
 
+  def ranksFromValues(values: Seq[(Double,Double)]): Seq[(Int,Int)] = {
+    // replace first of values by rank
+    val ranks2 = values.sortBy(_._2).zipWithIndex.map( pairAndIdx => (pairAndIdx._1._1, pairAndIdx._2))
+    val ranks = ranks2.sortBy(_._1).zipWithIndex.map( pairAndIdx => (pairAndIdx._2, pairAndIdx._1._2))
+
+    //val ranks1 = values.sortBy(_._1).zipWithIndex.map( pairAndIdx => (pairAndIdx._2, pairAndIdx._1._2))
+    //val ranks = ranks1.sortBy(_._2).zipWithIndex.map( pairAndIdx => (pairAndIdx._1._1, pairAndIdx._2))
+    ranks
+  }
+
+
+  def spearmansRankCorrelation(ranks: Seq[(Int,Int)]): Double = {
+    val n = ranks.size.toDouble
+    val sum = ranks.foldLeft(0.0)((accum, pair) => accum + math.pow(pair._1 - pair._2, 2))
+    1 - 6 * sum / (n * (n*n - 1))
+
+    // ranking change, between 0 and 1:
+    //0.5 -  spearmansRankCorrelation(ranks)/2
+  }
+
   // convenience method
   def averagePrecision(classToPredictionAndLabel: Map[Int, Seq[(Double, Boolean)]]): Double = {
     throw new UnsupportedOperationException

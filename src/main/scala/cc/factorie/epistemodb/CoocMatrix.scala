@@ -13,9 +13,9 @@ import cc.factorie.la.{Tensor2, SparseTensor}
  * Holds a generic matrix that can be written to MongoDB.
  */
 class CoocMatrix(var _numRows: Int, var _numCols:Int) extends MongoWritable {
-  val rows = new mutable.HashMap[Int, mutable.HashMap[Int, Double]]
+  val rowToColAndVal = new mutable.HashMap[Int, mutable.HashMap[Int, Double]]
   // Backpointers for efficiency
-  var cols = new mutable.HashMap[Int, mutable.Set[Int]]
+  var colToRows = new mutable.HashMap[Int, mutable.Set[Int]]
   // number of non-zero cells
   private var __nnz = 0
 
@@ -35,24 +35,24 @@ class CoocMatrix(var _numRows: Int, var _numCols:Int) extends MongoWritable {
       // Keeping track of non-zero elements.
       __nnz -= 1
       // Data structures are only keeping keys to rows and columns if they contain non-zero elements:
-      val row = rows.get(rowNr).get
+      val row = rowToColAndVal.get(rowNr).get
       row.remove(colNr)
       if (row.isEmpty) {
-        rows.remove(rowNr)
+        rowToColAndVal.remove(rowNr)
       }
-      val col = cols.get(colNr).get
+      val col = colToRows.get(colNr).get
       col-=rowNr
       if (col.isEmpty) {
-        cols.remove(colNr)
+        colToRows.remove(colNr)
       }
     } else if (cellValue != 0) {
       if (get(rowNr, colNr) == 0) {
         __nnz += 1
       }
-      val row = rows.getOrElseUpdate(rowNr, new mutable.HashMap[Int, Double]())
+      val row = rowToColAndVal.getOrElseUpdate(rowNr, new mutable.HashMap[Int, Double]())
       row.update(colNr,cellValue)
 
-      val col = cols.getOrElseUpdate(colNr, new mutable.HashSet[Int]())
+      val col = colToRows.getOrElseUpdate(colNr, new mutable.HashSet[Int]())
       col+=rowNr
     }
 
@@ -63,7 +63,7 @@ class CoocMatrix(var _numRows: Int, var _numCols:Int) extends MongoWritable {
 
   def nnz() = __nnz
 
-  def nonZeroCols() = cols.keySet
+  def nonZeroCols() = colToRows.keySet
 
   /**
    * This is similar to an '==' method, however, we don't override it, since it relies on mutable fields (which may pose
@@ -72,11 +72,11 @@ class CoocMatrix(var _numRows: Int, var _numCols:Int) extends MongoWritable {
    *   @param m2
    */
   def hasSameContent(m2: CoocMatrix ): Boolean = {
-    return m2.numRows() == _numRows && m2.numCols() == _numCols && m2.getRows() == rows && m2.getCols() == cols
+    return m2.numRows() == _numRows && m2.numCols() == _numCols && m2.getRows() == rowToColAndVal && m2.getCols() == colToRows
   }
 
   def getRow(rowNr: Int): mutable.HashMap[Int, Double] = {
-    rows.getOrElse(rowNr, new mutable.HashMap[Int, Double])
+    rowToColAndVal.getOrElse(rowNr, new mutable.HashMap[Int, Double])
   }
 
   def get(rowNr: Int, colNr: Int) = {
@@ -86,8 +86,8 @@ class CoocMatrix(var _numRows: Int, var _numCols:Int) extends MongoWritable {
   def numRows() = _numRows
   def numCols() = _numCols
 
-  protected def getRows() = rows
-  protected def getCols() = cols
+  protected def getRows() = rowToColAndVal
+  protected def getCols() = colToRows
 
   /**
    * Filters the matrix depending on row and column thresholds for the minimum number of non-zero cells.
@@ -125,16 +125,16 @@ class CoocMatrix(var _numRows: Int, var _numCols:Int) extends MongoWritable {
 
         while (!q.isEmpty) {
           val v : Int = q.dequeue()
-          if (rows.contains(v) ||
-              cols.contains(v - _numRows) ){
+          if (rowToColAndVal.contains(v) ||
+              colToRows.contains(v - _numRows) ){
             var offset = 0
             // Current row/column has outgoing pointers.
             val adj: Iterable[Int] = if (v < _numRows) {
               // get the columns; use offset
               offset = _numRows
-              rows.get(v).get.keys.filter(c => cols.get(c).get.size > tCol)
+              rowToColAndVal.get(v).get.keys.filter(c => colToRows.get(c).get.size > tCol)
             } else {
-              cols.get(v - _numRows).get.filter(r => rows.get(r).get.size > tRow)
+              colToRows.get(v - _numRows).get.filter(r => rowToColAndVal.get(r).get.size > tRow)
               // get the rows; no offset
             }
             for  (a <- adj; if marks(a + offset) == 0) {
@@ -211,7 +211,7 @@ class CoocMatrix(var _numRows: Int, var _numCols:Int) extends MongoWritable {
       }
       val rowNr = cell._1
       val colNr = cell._2
-      if (trainMatrix.rows.get(rowNr).get.size > 1 && trainMatrix.cols.get(colNr).get.size > 1) {
+      if (trainMatrix.rowToColAndVal.get(rowNr).get.size > 1 && trainMatrix.colToRows.get(colNr).get.size > 1) {
         matrixToGrow.set(rowNr, colNr, get(rowNr, colNr))
         trainMatrix.set(rowNr, colNr, 0)
       }
@@ -221,7 +221,7 @@ class CoocMatrix(var _numRows: Int, var _numCols:Int) extends MongoWritable {
 
 
   def getNnzCells(): Seq[(Int, Int)] = {
-    for((k1, v1) <- rows.toSeq; k2 <- v1.keys) yield (k1, k2)
+    for((k1, v1) <- rowToColAndVal.toSeq; k2 <- v1.keys) yield (k1, k2)
   }
 
   /*
@@ -375,6 +375,13 @@ object CoocMatrix {
       // shift column indices, so that column falls into equivalence class 0, and pick random index
       val randomMultiple = random.nextInt((numCols - colClass - 1) / underlyingTopics + 1)
       val colNr = randomMultiple * underlyingTopics + colClass
+
+      if (rowClass == colClass) {
+        assert(colNr % underlyingTopics == rowNr % underlyingTopics)
+      } else {
+        assert(colNr % underlyingTopics != rowNr % underlyingTopics)
+      }
+
       assert(colNr < numCols)
       m.set(rowNr, colNr, 1.0)
     })

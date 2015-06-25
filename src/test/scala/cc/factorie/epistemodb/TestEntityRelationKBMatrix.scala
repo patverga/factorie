@@ -16,7 +16,7 @@ class TestEntityRelationKBMatrix extends JUnitSuite  with util.FastLogging  {
   val eps = 1e-4
 
   @Test def getSetCellsTest() {
-    val m = new EntityRelationKBMatrix()
+    val m = new EntityPairStringKBMatrix()
     m.set(EntityPair("Barack Obama", "Michelle Obama"), "is married to", 5.0)
     m.set(EntityPair("Barack Obama", "Michelle Obama"), "is married to", 10.0)
     m.set(EntityPair("Barack Obama", "Michelle Obama"), "per:spouse", 1.0)
@@ -33,7 +33,7 @@ class TestEntityRelationKBMatrix extends JUnitSuite  with util.FastLogging  {
   }
 
   @Test def equalsTest() {
-    val m1 = new EntityRelationKBMatrix()
+    val m1 = new EntityPairStringKBMatrix()
     m1.set(EntityPair("Barack Obama", "Michelle Obama"), "is married to", 5.0)
     m1.set(EntityPair("Barack Obama", "Michelle Obama"), "is married to", 10.0)
     m1.set(EntityPair("Barack Obama", "Michelle Obama"), "per:spouse", 1.0)
@@ -41,21 +41,21 @@ class TestEntityRelationKBMatrix extends JUnitSuite  with util.FastLogging  {
     m1.set(EntityPair("Frank Sinatra", "Nancy Barbato"), "and his wife", 2.0)
 
     // same as m1, but constructed in different order
-    val m2 = new EntityRelationKBMatrix()
+    val m2 = new EntityPairStringKBMatrix()
     m2.set(EntityPair("Frank Sinatra", "Nancy Barbato"), "and his wife", 2.0)
     m2.set(EntityPair("Frank Sinatra", "Nancy Barbato"), "per:spouse", 1.0)
     m2.set(EntityPair("Barack Obama", "Michelle Obama"), "per:spouse", 1.0)
     m2.set(EntityPair("Barack Obama", "Michelle Obama"), "is married to", 10.0)
 
     // similar to m2, but one different cell value
-    val m3 = new EntityRelationKBMatrix()
+    val m3 = new EntityPairStringKBMatrix()
     m3.set(EntityPair("Frank Sinatra", "Nancy Barbato"), "and his wife", 1.0)
     m3.set(EntityPair("Frank Sinatra", "Nancy Barbato"), "per:spouse", 1.0)
     m3.set(EntityPair("Barack Obama", "Michelle Obama"), "per:spouse", 1.0)
     m3.set(EntityPair("Barack Obama", "Michelle Obama"), "is married to", 10.0)
 
     // different rows/columns
-    val m4 = new EntityRelationKBMatrix()
+    val m4 = new EntityPairStringKBMatrix()
     m4.set(EntityPair("Frank Sinatra", "Nancy Barbato"), "and his wife", 2.0)
     m4.set(EntityPair("Frank Sinatra", "Nancy Barbato"), "per:spouse", 1.0)
     m4.set(EntityPair("Nicola Sarcozy", "Carla Bruni"), "per:spouse", 1.0)
@@ -72,7 +72,7 @@ class TestEntityRelationKBMatrix extends JUnitSuite  with util.FastLogging  {
     val fongo = new Fongo("myserver");
     val db : DB = fongo.getDB("mydb");
 
-    val m1 = new EntityRelationKBMatrix()
+    val m1 = new EntityPairStringKBMatrix()
     m1.set(EntityPair("Frank Sinatra", "Nancy Barbato"), "and his wife", 2.0)
     m1.set(EntityPair("Frank Sinatra", "Nancy Barbato"), "per:spouse", 1.0)
     m1.set(EntityPair("Barack Obama", "Michelle Obama"), "per:spouse", 1.0)
@@ -80,13 +80,13 @@ class TestEntityRelationKBMatrix extends JUnitSuite  with util.FastLogging  {
 
     m1.writeToMongo(db)
 
-    val m2 = new EntityRelationKBMatrix
+    val m2 = new EntityPairStringKBMatrix
     m2.populateFromMongo(db)
     assertTrue(m1.hasSameContent(m2))
   }
 
   @Test def pruneMatrixTest() {
-    val m = new EntityRelationKBMatrix()
+    val m = new EntityPairStringKBMatrix()
     m.set(EntityPair("Barack Obama", "Michelle Obama"), "is married to", 1.0)
     m.set(EntityPair("Frank Sinatra", "Nancy Barbato"), "per:spouse", 1.0)
     m.set(EntityPair("Frank Sinatra", "Nancy Barbato"), "and his wife", 1.0)
@@ -94,7 +94,7 @@ class TestEntityRelationKBMatrix extends JUnitSuite  with util.FastLogging  {
 
     val m0 = m.prune(0,0)
 
-    val m0goal = new EntityRelationKBMatrix()
+    val m0goal = new EntityPairStringKBMatrix()
     m0goal.set(EntityPair("Frank Sinatra", "Nancy Barbato"), "per:spouse", 1.0)
     m0goal.set(EntityPair("Frank Sinatra", "Nancy Barbato"), "and his wife", 1.0)
     m0goal.set(EntityPair("Nicola Sarcozy", "Carla Bruni"), "and his wife", 1.0)
@@ -102,14 +102,14 @@ class TestEntityRelationKBMatrix extends JUnitSuite  with util.FastLogging  {
     assertTrue(m0.hasSameContent(m0goal))
 
     val m1 = m.prune(0,1)
-    val m1goal = new EntityRelationKBMatrix()
+    val m1goal = new EntityPairStringKBMatrix()
     m1goal.set(EntityPair("Frank Sinatra", "Nancy Barbato"), "and his wife", 1.0)
     m1goal.set(EntityPair("Nicola Sarcozy", "Carla Bruni"), "and his wife", 1.0)
 
     assertTrue(m1.hasSameContent(m1goal))
 
     val m2 = m.prune(1,0)
-    val m2goal = new EntityRelationKBMatrix()
+    val m2goal = new EntityPairStringKBMatrix()
     m2goal.set(EntityPair("Frank Sinatra", "Nancy Barbato"), "per:spouse", 1.0)
     m2goal.set(EntityPair("Frank Sinatra", "Nancy Barbato"), "and his wife", 1.0)
     assertTrue(m2.hasSameContent(m2goal))
@@ -120,7 +120,7 @@ class TestEntityRelationKBMatrix extends JUnitSuite  with util.FastLogging  {
     //1101
     //0010
     //1101
-    val m = new EntityRelationKBMatrix()
+    val m = new EntityPairStringKBMatrix()
     m.set(EntityPair("A", "A"), "1",1.0)
     m.set(EntityPair("A", "A"), "3",1.0)
 

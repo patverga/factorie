@@ -68,7 +68,7 @@ trait KBMatrix[KBMatrixT <: KBMatrix[KBMatrixT, RowT, ColT], RowT, ColT] {
     for (col <- testCols) {
       if (__colMap.containsKey(col)) {
         val cNr = __colMap.keyToIndex(col)
-        accumNnz += matrix.cols.get(cNr).get.size
+        accumNnz += matrix.colToRows.get(cNr).get.size
       }
     }
     accumNnz

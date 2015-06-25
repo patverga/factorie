@@ -3,6 +3,9 @@ package cc.factorie.epistemodb
 import com.mongodb._
 import scala.Some
 import java.io.{Writer, File}
+import scala.Predef._
+import scala.Some
+import cc.factorie.epistemodb.EntityPair
 
 /**
  * Created by beroth on 2/6/15.
@@ -12,17 +15,58 @@ import java.io.{Writer, File}
  * I.e. additionally to matrix information, it also stores information about entities, relations etc.
  */
 
-class EntityRelationKBMatrix(val matrix:CoocMatrix = new CoocMatrix(0,0),
-               val __rowMap: MatrixIndexMap[EntityPair] with MongoWritable = new EntityPairMemoryMap(collectionPrefix = MongoWritable.ENTITY_ROW_MAP_PREFIX),
-               val __colMap: MatrixIndexMap[String] with MongoWritable = new StringMemoryIndexMap(collectionPrefix = MongoWritable.ENTITY_COL_MAP_PREFIX)
-                              ) extends KBMatrix[EntityRelationKBMatrix, EntityPair, String] with MongoWritable {
 
-  def cloneWithNewCells(cells: CoocMatrix): EntityRelationKBMatrix = {
-    new EntityRelationKBMatrix(matrix = cells, __rowMap = this.__rowMap, __colMap = this.__colMap)
+
+class TransEKBMatrix {
+  val coocMatrix = new EntityPairStringKBMatrix
+
+  val entityIndexMap = new MemoryIndexMap[String]
+
+  def listEntityIndexMap: Map[Int, (Int, Int)] = {
+    coocMatrix.__rowMap.keyIterator.map(key => {
+      entityIndexMap.add(key.e1)
+      entityIndexMap.add(key.e2)
+      val id1 = entityIndexMap.keyToIndex(key.e1)
+      val id2 = entityIndexMap.keyToIndex(key.e2)
+      val pairId = coocMatrix.__rowMap.keyToIndex(key)
+      (pairId -> (id1, id2))
+    }).toMap
   }
 
-  def createEmptyMatrix(): EntityRelationKBMatrix = {
-    new EntityRelationKBMatrix()
+}
+
+/*
+class TransEKBMatrix(val matrix:CoocMatrix = new CoocMatrix(0,0),
+                             val __rowMap: MatrixIndexMap[EntityPair] = new EntityPairMemoryMap(collectionPrefix = MongoWritable.ENTITY_ROW_MAP_PREFIX),
+                             val __colMap: MatrixIndexMap[String] = new StringMemoryIndexMap(collectionPrefix = MongoWritable.ENTITY_COL_MAP_PREFIX),
+                             val entityPairMatrix: CoocMatrix = new CoocMatrix(0,0),
+                             val __entityMap: MatrixIndexMap[String] = new StringMemoryIndexMap(collectionPrefix = "ENITIIES")
+                              ) extends KBMatrix[EntityRelationKBMatrix, EntityPair, String]  {
+
+  def cloneWithNewCells(cells: CoocMatrix): TransEKBMatrix = {
+    new TransEKBMatrix(matrix = cells, __rowMap = this.__rowMap, __colMap = this.__colMap, entityPairMatrix = this.entityPairMatrix, __entityMap = this.__entityMap)
+  }
+
+  def createEmptyMatrix(): TransEKBMatrix = {
+    new TransEKBMatrix()
+  }
+
+}
+*/
+
+
+
+class EntityPairStringKBMatrix(val matrix:CoocMatrix = new CoocMatrix(0,0),
+               val __rowMap: MatrixIndexMap[EntityPair] with MongoWritable = new EntityPairMemoryMap(collectionPrefix = MongoWritable.ENTITY_ROW_MAP_PREFIX),
+               val __colMap: MatrixIndexMap[String] with MongoWritable = new StringMemoryIndexMap(collectionPrefix = MongoWritable.ENTITY_COL_MAP_PREFIX)
+                              ) extends KBMatrix[EntityPairStringKBMatrix, EntityPair, String] with MongoWritable {
+
+  def cloneWithNewCells(cells: CoocMatrix): EntityPairStringKBMatrix = {
+    new EntityPairStringKBMatrix(matrix = cells, __rowMap = this.__rowMap, __colMap = this.__colMap)
+  }
+
+  def createEmptyMatrix(): EntityPairStringKBMatrix = {
+    new EntityPairStringKBMatrix()
   }
 
   def writeToMongo(mongoDb: DB) {
@@ -176,7 +220,7 @@ object StringStringKBMatrix {
 
 
 
-object EntityRelationKBMatrix {
+object EntityPairStringKBMatrix {
 
   private def entitiesAndRelFromLine(line: String, colsPerEnt:Int): (EntityPair, String, Double) = {
     val parts = line.split("\t")
@@ -191,8 +235,8 @@ object EntityRelationKBMatrix {
   }
 
   // Loads a matrix from a tab-separated file
-  def fromTsv(filename:String, colsPerEnt:Int = 2) : EntityRelationKBMatrix = {
-    val kb = new EntityRelationKBMatrix()
+  def fromTsv(filename:String, colsPerEnt:Int = 2) : EntityPairStringKBMatrix = {
+    val kb = new EntityPairStringKBMatrix()
     val tReadStart = System.currentTimeMillis
     var numRead = 0
     scala.io.Source.fromFile(filename).getLines.foreach(line => {
@@ -212,12 +256,12 @@ object EntityRelationKBMatrix {
   }
 
 
-  def fromTsvMongoBacked(mongoDb: DB, filename:String, colsPerEnt:Int = 2) : EntityRelationKBMatrix = {
+  def fromTsvMongoBacked(mongoDb: DB, filename:String, colsPerEnt:Int = 2) : EntityPairStringKBMatrix = {
 
     val rowMap = new EntityPairMongoMap(mongoDb = mongoDb, collectionPrefix = MongoWritable.ENTITY_ROW_MAP_PREFIX)
     val colMap = new StringMongoMap(mongoDb = mongoDb, collectionPrefix = MongoWritable.ENTITY_COL_MAP_PREFIX)
 
-    val kb = new EntityRelationKBMatrix(__rowMap = rowMap, __colMap = colMap)
+    val kb = new EntityPairStringKBMatrix(__rowMap = rowMap, __colMap = colMap)
 
     val tReadStart = System.currentTimeMillis
     var numRead = 0
