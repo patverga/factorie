@@ -434,7 +434,7 @@ object CoocMatrix {
 
 object EntityPairCoocMatrix {
   def randomOneZeroMatrix(numRows: Int, numCols: Int, maxNnz:Int, random:Random = new Random(0), underlyingTopics: Int = 1, noiseRatio: Double = 0.1): EntityPairCoocMatrix = {
-    val m = CoocMatrix.randomOneZeroMatrix(numRows, numCols, maxNnz, random)
+    val m = CoocMatrix.randomOneZeroMatrix(numRows, numCols, maxNnz, random, underlyingTopics, noiseRatio)
     val numEnts =  numRows*2
     val bimap: HashBiMap[Int, (Int, Int)] = HashBiMap.create[Int, (Int, Int)](numEnts)
     for(rowId <- 0 until numRows) {

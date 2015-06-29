@@ -186,19 +186,23 @@ extends MatrixModel with Parameters {
   val entityVectors : IndexedSeq[Weights] = __entityVectors.map(this.Weights(_))
   val colVectors : IndexedSeq[Weights] = __colVectors.map(this.Weights(_))
 
-
   def gradient(e1: Int, e2:Int, col: Int): Tensor = {
     val e1vec = entityVectors(e1).value
     val e2vec = entityVectors(e2).value
     val colVec = colVectors(col).value
-    e2vec.-(e1vec).-(colVec)
+    e2vec - e1vec - colVec
   }
 
-  def similarity01(e1: Int, e2:Int, col: Int) = {
-    1.0 - gradient(e1, e2, col).twoNorm
+  def similarity01(e1: Int, e2:Int, col: Int) : Double = {
+//    1.0 - gradient(e1, e2, col).twoNorm
+    -gradient(e1, e2, col).twoNorm
+//    val e1vec = entityVectors(e1).value
+//    val e2vec = entityVectors(e2).value
+//    val colVec = colVectors(col).value
+//    -(e1vec + colVec - e2vec).twoNorm
   }
 
-  def similarity01(row: Int, col: Int) = {
+  def similarity01(row: Int, col: Int) : Double = {
     val ents = rowToEnts(row)
     similarity01(ents._1, ents._2, row)
   }
@@ -222,7 +226,7 @@ object TransEModel {
     //def initVector(i: Int): Array[Double] = Array.fill[Double](latentDimensionality)(2*random.nextDouble() - 1.0)
 
     // Get maximums of value tuples.
-    val numEnts = entityMap.map(kv => math.max(kv._2._1, kv._2._2)).max
+    val numEnts = entityMap.map(kv => math.max(kv._2._1, kv._2._2)).max+1
 
     val entVectors = (0 until numEnts).map(i => new DenseTensor1(initVector))
     val colVectors = (0 until numCols).map(i => new DenseTensor1(initVector))

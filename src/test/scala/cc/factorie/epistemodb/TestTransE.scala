@@ -1,5 +1,6 @@
 package cc.factorie.epistemodb
 
+import cc.factorie.la.DenseTensor1
 import org.scalatest.junit.JUnitSuite
 import cc.factorie.util
 import org.junit.Test
@@ -28,15 +29,19 @@ class TestTransE extends JUnitSuite  with util.FastLogging {
 
       val stepsize = 0.1
       val regularizer = 0.01
+      val margin = 2.0
       val dim = 10
       val iters = 10
-
 
       val rowToEnts = m.rowEntsBimap
 
       val model = TransEModel.randomModel(numCols, rowToEnts, numTopics, random)
+      for (i <- 0 until model.numEnts)
+          assertTrue(model.entityVectors(i).value != null)
+      for (i <- 0 until numCols)
+        assertTrue(model.colVectors(i).value != null)
 
-      val trainer = new TransETrainer(regularizer, stepsize, 0.1, dim, m, model, random)
+      val trainer = new TransETrainer(regularizer, stepsize, margin, dim, m, model, random)
 
       val objectiveValues = trainer.train(iters)
       assertTrue(objectiveValues(0) < objectiveValues(9))
@@ -53,20 +58,22 @@ class TestTransE extends JUnitSuite  with util.FastLogging {
       val rowToEnts = m.rowEntsBimap
 
       println("nnz: " + m.nnz())
-      val (mTrain,mDev,mTest) = m.randomTestSplit(numDevNNZ, numTestNNZ, None, Some(Set(0,1,2,3,4,5,6,7,8,9)), random)
-
+      val (mTrain, mDev, mTest) = m.randomTestSplit(numDevNNZ, numTestNNZ, None, Some(Set(0,1,2,3,4,5,6,7,8,9)), random)
+      println("trainnnz: " + mTrain.nnz())
+      println("testnnz: " + mTest.nnz())
       val stepsize = 0.1
       val regularizer = 0.01
+      val margin = 1.0
       val dim = 10
 
       // Train model for different number of iterations
       val model0 = TransEModel.randomModel(numCols, rowToEnts, numTopics, random)
       val model5 = TransEModel.randomModel(numCols, rowToEnts, numTopics, random)
-      val trainer5 = new TransETrainer(regularizer, stepsize, 0.1, dim, mTrain, model5, random)
+      val trainer5 = new TransETrainer(regularizer, stepsize, margin, dim, mTrain, model5, random)
       trainer5.train(5)
       println("--")
       val model10 = TransEModel.randomModel(numCols, rowToEnts, numTopics, random)
-      val trainer10 = new TransETrainer(regularizer, stepsize, 0.1, dim, mTrain, model10, random)
+      val trainer10 = new TransETrainer(regularizer, stepsize, margin, dim, mTrain, model10, random)
       trainer10.train(10)
 
       val result0 = model0.similaritiesAndLabels(mTrain, mTest)
