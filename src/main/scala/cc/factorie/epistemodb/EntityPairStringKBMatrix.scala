@@ -1,11 +1,9 @@
 package cc.factorie.epistemodb
 
 import com.mongodb._
-import scala.Some
 import java.io.{Writer, File}
 import scala.Predef._
 import scala.Some
-import cc.factorie.epistemodb.EntityPair
 
 /**
  * Created by beroth on 2/6/15.

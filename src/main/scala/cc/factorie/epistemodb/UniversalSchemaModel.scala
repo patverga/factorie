@@ -1,11 +1,14 @@
 package cc.factorie.epistemodb
 
 import com.mongodb.DB
-import cc.factorie.la.DenseTensor1
+import cc.factorie.la.{Tensor, Tensor1, DenseTensor1}
 import cc.factorie.optimize.OptimizableObjectives.UnivariateLinkFunction
 import cc.factorie.optimize.{UnivariateOptimizableObjective, OptimizableObjectives}
 import scala.collection.mutable
 import scala.util.Random
+import cc.factorie.model.{Parameters, Weights}
+import com.google.common.collect.BiMap
+import scala.collection.JavaConversions._
 
 
 abstract class MatrixModel {
@@ -176,21 +179,34 @@ class UniversalSchemaModel(val rowVectors: IndexedSeq[DenseTensor1], val colVect
 }
 
 
-class TransEModel(val entityVectors: IndexedSeq[DenseTensor1], val colVectors: IndexedSeq[DenseTensor1], rowToEnts: Int => (Int, Int)) {
-  def similarity01(row: Int, col: Int) = {
+//class TransEModel(val entityVectors: IndexedSeq[DenseTensor1], val colVectors: IndexedSeq[DenseTensor1], rowToEnts: Int => (Int, Int))
+class TransEModel(__entityVectors: IndexedSeq[DenseTensor1], __colVectors: IndexedSeq[DenseTensor1], val rowToEnts: Int => (Int, Int), val numEnts : Int)
+extends MatrixModel with Parameters {
 
-    val ents = rowToEnts(row)
-    val e1vec = entityVectors(ents._1)
-    val e2vec = entityVectors(ents._2)
-    val colVec = colVectors(col)
+  val entityVectors : IndexedSeq[Weights] = __entityVectors.map(this.Weights(_))
+  val colVectors : IndexedSeq[Weights] = __colVectors.map(this.Weights(_))
 
-    1.0 - e1vec.+(colVec).-(e2vec).twoNorm
+
+  def gradient(e1: Int, e2:Int, col: Int): Tensor = {
+    val e1vec = entityVectors(e1).value
+    val e2vec = entityVectors(e2).value
+    val colVec = colVectors(col).value
+    e2vec.-(e1vec).-(colVec)
   }
 
-  def cosSimilarity01(vec1: DenseTensor1, vec2: DenseTensor1): Double = (1.0 + vec1.cosineSimilarity(vec2)) / 2.0
+  def similarity01(e1: Int, e2:Int, col: Int) = {
+    1.0 - gradient(e1, e2, col).twoNorm
+  }
+
+  def similarity01(row: Int, col: Int) = {
+    val ents = rowToEnts(row)
+    similarity01(ents._1, ents._2, row)
+  }
+
+  def cosSimilarity01(vec1: Tensor, vec2: Tensor): Double = (1.0 + vec1.cosineSimilarity(vec2)) / 2.0
 
   def getScoredColumns(v: DenseTensor1): Iterable[(Int, Double)] = {
-    colVectors.indices.map(i => (i, cosSimilarity01(v, colVectors(i)) ))
+    colVectors.indices.map(i => (i, cosSimilarity01(v, colVectors(i).value) ))
   }
 
   def getScoredRows(v: DenseTensor1): Iterable[(Int, Double)] = {
@@ -200,7 +216,7 @@ class TransEModel(val entityVectors: IndexedSeq[DenseTensor1], val colVectors: I
 
 
 object TransEModel {
-  def randomModel(numCols:Int, entityMap: Map[Int, (Int, Int)], dim: Int, random: Random = new Random(0)): TransEModel = {
+  def randomModel(numCols:Int, entityMap: BiMap[Int, (Int, Int)], dim: Int, random: Random = new Random(0)): TransEModel = {
     val scale = 1.0 / dim
     def initVector(): Array[Double] = Array.fill[Double](dim)(scale * random.nextGaussian())
     //def initVector(i: Int): Array[Double] = Array.fill[Double](latentDimensionality)(2*random.nextDouble() - 1.0)
@@ -211,7 +227,7 @@ object TransEModel {
     val entVectors = (0 until numEnts).map(i => new DenseTensor1(initVector))
     val colVectors = (0 until numCols).map(i => new DenseTensor1(initVector))
 
-    new TransEModel(entVectors, colVectors, entityMap)
+    new TransEModel(entVectors, colVectors, entityMap, numEnts)
   }
 
   def calculateProb(theta: Double): Double = {

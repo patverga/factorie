@@ -5,6 +5,8 @@ import com.mongodb._
 import org.bson.types.BasicBSONList
 import scala.util.Random
 import cc.factorie.la.{Tensor2, SparseTensor}
+import com.google.common.collect.HashBiMap
+import scala.collection.JavaConversions._
 
 /**
  * Created by beroth on 1/30/15.
@@ -13,11 +15,11 @@ import cc.factorie.la.{Tensor2, SparseTensor}
  * Holds a generic matrix that can be written to MongoDB.
  */
 class CoocMatrix(var _numRows: Int, var _numCols:Int) extends MongoWritable {
-  val rowToColAndVal = new mutable.HashMap[Int, mutable.HashMap[Int, Double]]
+  var rowToColAndVal = new mutable.HashMap[Int, mutable.HashMap[Int, Double]]
   // Backpointers for efficiency
   var colToRows = new mutable.HashMap[Int, mutable.Set[Int]]
   // number of non-zero cells
-  private var __nnz = 0
+  protected var __nnz = 0
 
   def copy(): CoocMatrix = {
     val m = new CoocMatrix(numRows(), numCols())
@@ -316,8 +318,48 @@ val: <DOUBLE>
   */
 }
 
+class EntityPairCoocMatrix(_numRows: Int, _numCols:Int, var _numEnts: Int) extends CoocMatrix(_numRows,  _numCols) {
+  var rowEntsBimap: HashBiMap[Int, (Int, Int)] = HashBiMap.create[Int, (Int, Int)]()
 
+  override def set(rowNr: Int, colNr: Int, cellValue: Double) {
+    if (rowNr>=_numRows) {
+      throw new IllegalArgumentException("Cannot specify new row without entities. Use set(e1,e2,col, cellVal).")
+    }
+    super.set(rowNr, colNr, cellValue)
+  }
 
+  def set(e1: Int, e2:Int, colNr: Int, cellValue: Double) {
+    val rowNr = if (rowEntsBimap.containsValue((e1,e2))) {
+      rowEntsBimap.inverse().get((e1,e2))
+    } else {
+      _numEnts = math.max(_numEnts, math.max(e1 + 1, e2 + 1))
+      rowEntsBimap.put(_numRows, (e1, e2))
+      _numRows
+    }
+    super.set(rowNr, colNr, cellValue)
+  }
+
+  def pruneWithEntities(tRow: Int = 2, tCol: Int = 2): (EntityPairCoocMatrix, Map[Int, Int], Map[Int, Int]) = {
+    val (m, rowMap, colMap) = prune(tRow, tCol)
+
+    val prunedEpMatrix = new EntityPairCoocMatrix(m.numRows(), m.numCols(), _numEnts)
+
+    val updatedBimap: HashBiMap[Int, (Int, Int)] = HashBiMap.create[Int, (Int, Int)](rowEntsBimap.size())
+
+    for(oldRowId <- rowEntsBimap.keySet()) {
+      val newRowId = rowMap.get(oldRowId).get
+      updatedBimap.put(newRowId, rowEntsBimap.get(oldRowId))
+    }
+
+    prunedEpMatrix.rowEntsBimap = updatedBimap
+    prunedEpMatrix.__nnz = m.nnz()
+    prunedEpMatrix.rowToColAndVal = m.rowToColAndVal
+    prunedEpMatrix.colToRows = m.colToRows
+
+    (prunedEpMatrix, rowMap, colMap)
+  }
+
+}
 
 object CoocMatrix {
   //val CELLS_COLLECTION = "cells"
@@ -386,5 +428,23 @@ object CoocMatrix {
       m.set(rowNr, colNr, 1.0)
     })
     m
+  }
+}
+
+
+object EntityPairCoocMatrix {
+  def randomOneZeroMatrix(numRows: Int, numCols: Int, maxNnz:Int, random:Random = new Random(0), underlyingTopics: Int = 1, noiseRatio: Double = 0.1): EntityPairCoocMatrix = {
+    val m = CoocMatrix.randomOneZeroMatrix(numRows, numCols, maxNnz, random)
+    val numEnts =  numRows*2
+    val bimap: HashBiMap[Int, (Int, Int)] = HashBiMap.create[Int, (Int, Int)](numEnts)
+    for(rowId <- 0 until numRows) {
+      bimap.put(rowId, (rowId, numRows + rowId))
+    }
+    val epMatrix = new EntityPairCoocMatrix(numRows, numCols, numEnts)
+    epMatrix.rowEntsBimap = bimap
+    epMatrix.__nnz = m.nnz()
+    epMatrix.rowToColAndVal = m.rowToColAndVal
+    epMatrix.colToRows = m.colToRows
+    epMatrix
   }
 }
