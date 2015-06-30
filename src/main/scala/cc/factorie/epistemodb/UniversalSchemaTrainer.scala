@@ -1,5 +1,7 @@
 package cc.factorie.epistemodb
 
+import java.util
+
 import cc.factorie.util.{DoubleAccumulator, Threading}
 import scala.util.Random
 import scala.collection._
@@ -67,21 +69,13 @@ abstract class BprTrainer {
   }
 }
 
-class TransEExample(val posE1: Int, val posE2: Int, val negE1: Int, val negE2: Int,
-                    val colIndex: Int, model : TransEModel, margin : Double) extends Example {
+class TransEExample(val posVecE1: Weights, val posVecE2: Weights, val negVecE1: Weights, val negVecE2: Weights,
+                    val colVec: Weights, posGrad : Tensor, negGrad : Tensor, obj : Double, margin : Double)
+  extends Example {
 
   def accumulateValueAndGradient(value: DoubleAccumulator, gradient: WeightsMapAccumulator): Unit = {
-    val posGrad = model.gradient(posE1, posE2, colIndex)
-    val negGrad = model.gradient(negE1, negE2, colIndex)
-
-    val obj = margin + posGrad.twoNorm - negGrad.twoNorm
     value.accumulate(obj)
     if (obj > 0.0) {
-      val posVecE1 = model.entityVectors(posE1)
-      val posVecE2 = model.entityVectors(posE2)
-      val negVecE1 = model.entityVectors(negE1)
-      val negVecE2 = model.entityVectors(negE2)
-      val colVec = model.colVectors(colIndex)
       gradient.accumulate(posVecE1, posGrad, 1.0)
       gradient.accumulate(posVecE2, posGrad, -1.0)
       gradient.accumulate(negVecE1, negGrad, -1.0)
@@ -106,14 +100,16 @@ BprTrainer {
 
   override def train(numIters: Int): IndexedSeq[Double] = {
     val objSeq = for (t <- 0 until numIters) yield {
-      val examples = matrix.getNnzCells().map { case (row, col) => makeExample(row, col) }
+      val examplesAndObjectives = matrix.getNnzCells().map { case (row, col) => makeExample(row, col) }
+      val examples = examplesAndObjectives.map(_._1)
       val batches = random.shuffle(examples).grouped(batchSize).map(batch => new MiniBatchExample(batch)).toSeq
       trainer.processExamples(batches)
+      examplesAndObjectives.map(_._2).sum
     }
-    IndexedSeq[Double]()
+    objSeq
   }
 
-  def makeExample(rowIndex: Int, colIndex: Int): Example = {
+  def makeExample(rowIndex: Int, colIndex: Int): (Example, Double) = {
 
     val (posE1, posE2) = this.model.rowToEnts(rowIndex)
 
@@ -126,7 +122,18 @@ BprTrainer {
       (posE1, negE)
     }
 
-    new TransEExample(posE1, posE2, negE1, negE2, colIndex, model, margin)
+    val posGrad = model.gradient(posE1, posE2, colIndex)
+    val negGrad = model.gradient(negE1, negE2, colIndex)
+
+    val obj = margin + posGrad.twoNorm - negGrad.twoNorm
+
+    val posVecE1 = model.entityVectors(posE1)
+    val posVecE2 = model.entityVectors(posE2)
+    val negVecE1 = model.entityVectors(negE1)
+    val negVecE2 = model.entityVectors(negE2)
+    val colVec = model.colVectors(colIndex)
+
+    (new TransEExample(posVecE1, posVecE2, negVecE1, negVecE2, colVec, posGrad, negGrad, obj, margin), obj)
 
   }
 
@@ -205,4 +212,103 @@ class NormConstrainedBprUniversalSchemaTrainer(val maxNorm: Double, val stepsize
 }
 
 
+class UniversalSchemaExample(rowVecTrue : Weights, rowVecFalse : Weights, colVec : Weights, var factor : Double) extends Example {
+
+  factor = 1.0
+  def accumulateValueAndGradient(value: DoubleAccumulator, gradient: WeightsMapAccumulator): Unit = {
+    gradient.accumulate(rowVecTrue, colVec.value, factor)
+    gradient.accumulate(colVec, rowVecTrue.value, factor)
+
+    gradient.accumulate(rowVecFalse, colVec.value, -factor)
+    gradient.accumulate(colVec, rowVecFalse.value, -factor)
+
+  }
+}
+
+class AdaGradUniversalSchemaTrainer(val maxNorm: Double, val stepsize: Double, val dim: Int,
+                                    val matrix: CoocMatrix, val model: UniversalSchemaAdaGradModel, val random: Random) extends
+BprTrainer {
+
+  val regularizer = 0.01
+  val entityRegularizer = regularizer
+  val colRegularizer = regularizer
+
+  val optimizer = new AdaGradRDA(delta = 0.01 , rate = stepsize, l2 = regularizer)
+  val trainer = new LiteHogwildTrainer(weightsSet = model.parameters, optimizer = optimizer, maxIterations = Int.MaxValue)
+
+  optimizer.initializeWeights(model.parameters)
+
+
+  override def updateBprCells(rowIndexTrue: Int, rowIndexFalse: Int, colIndex: Int): Double = {
+    val scoreTrueCell = model.score(rowIndexTrue, colIndex)
+    val scoreFalseCell = model.score(rowIndexFalse, colIndex)
+    val theta = scoreTrueCell - scoreFalseCell
+    val prob = UniversalSchemaModel.calculateProb(theta)
+    val factor = 1 - (1 / (1 + math.exp(-theta)))
+    var thisObjective = math.log(prob)
+
+    val colVec = model.colVectors(colIndex)
+    val rowVecTrue = model.rowVectors(rowIndexTrue)
+    val rowVecFalse = model.rowVectors(rowIndexFalse)
+
+    trainer.processExample(new UniversalSchemaExample(rowVecTrue, rowVecFalse, colVec, factor))
+
+    thisObjective
+  }
+}
+
+
+class ColumnAverageExample(posColVec : Weights, negColVec : Weights, sharedRowVecs : Seq[Weights]) extends Example {
+
+  val factor = 1.0
+  def accumulateValueAndGradient(value: DoubleAccumulator, gradient: WeightsMapAccumulator): Unit = {
+
+    sharedRowVecs.foreach(colVec => {
+      gradient.accumulate(posColVec, colVec.value, factor)
+      gradient.accumulate(colVec, posColVec.value, factor)
+
+      gradient.accumulate(negColVec, colVec.value, -factor)
+      gradient.accumulate(colVec, negColVec.value, -factor)
+    })
+  }
+}
+
+class ColumnAverageTrainer(val maxNorm: Double, val stepsize: Double, val dim: Int,
+                                    val matrix: CoocMatrix, val model: ColumnAverageModel, val random: Random) extends
+BprTrainer {
+
+  val regularizer = 0.01
+  val entityRegularizer = regularizer
+  val colRegularizer = regularizer
+
+  val optimizer = new AdaGradRDA(delta = 0.01 , rate = stepsize, l2 = regularizer)
+  val trainer = new LiteHogwildTrainer(weightsSet = model.parameters, optimizer = optimizer, maxIterations = Int.MaxValue)
+
+  optimizer.initializeWeights(model.parameters)
+
+
+  override def updateBprCells(rowIndexTrue: Int, rowIndexFalse: Int, colIndex: Int): Double =
+  {
+    val colVec = model.colVectors(colIndex)
+    val sharedRowVecs = for (col <- model.rowToCols(rowIndexTrue) if col != colIndex)
+      yield model.colVectors(col)
+
+
+    var negColIndex = -1
+    do negColIndex = random.nextInt(model.numCols) while (model.rowToCols(rowIndexTrue).contains(negColIndex))
+    val negColVec = model.colVectors(negColIndex)
+
+
+    val scoreTrueCell = model.score(colVec.value, sharedRowVecs.map(_.value))
+    val scoreFalseCell = model.score(negColVec.value, sharedRowVecs.map(_.value))
+    val theta = scoreTrueCell - scoreFalseCell
+    val prob = UniversalSchemaModel.calculateProb(theta)
+    val factor = 1 - (1 / (1 + math.exp(-theta)))
+    var thisObjective = math.log(prob)
+
+    trainer.processExample(new ColumnAverageExample(colVec, negColVec, sharedRowVecs))
+
+    thisObjective
+  }
+}
 

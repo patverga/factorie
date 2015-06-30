@@ -105,7 +105,6 @@ object EmbeddingDistance {
     for (i <- 0 until vocab.length) if (vocab(i).equalsIgnoreCase(word))
       return i
     return -1
-
   }
 
 }

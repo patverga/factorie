@@ -177,6 +177,26 @@ class UniversalSchemaModel(val rowVectors: IndexedSeq[DenseTensor1], val colVect
   }
 
 }
+object UniversalSchemaModel {
+  type Row = (Int, mutable.HashMap[Int, Double])
+
+  def fromMongo(mongoDb: DB): UniversalSchemaModel = {
+    throw new UnsupportedOperationException
+  }
+
+  def randomModel(numRows: Int, numCols:Int, dim: Int, random: Random = new Random(0)): UniversalSchemaModel = {
+    val scale = 1.0 / dim
+    def initVector(): Array[Double] = Array.fill[Double](dim)(scale * random.nextGaussian())
+    //def initVector(i: Int): Array[Double] = Array.fill[Double](latentDimensionality)(2*random.nextDouble() - 1.0)
+    val rowVectors = (0 until numRows).map(i => new DenseTensor1(initVector))
+    val colVectors = (0 until numCols).map(i => new DenseTensor1(initVector))
+    new UniversalSchemaModel(rowVectors, colVectors)
+  }
+
+  def calculateProb(theta: Double): Double = {
+    1.0 / (1.0 + math.exp(-theta))
+  }
+}
 
 
 //class TransEModel(val entityVectors: IndexedSeq[DenseTensor1], val colVectors: IndexedSeq[DenseTensor1], rowToEnts: Int => (Int, Int))
@@ -240,20 +260,90 @@ object TransEModel {
 }
 
 
-object UniversalSchemaModel {
-  type Row = (Int, mutable.HashMap[Int, Double])
+class UniversalSchemaAdaGradModel(__rowVectors: IndexedSeq[DenseTensor1], __colVectors: IndexedSeq[DenseTensor1])
+  extends MatrixModel with Parameters {
 
-  def fromMongo(mongoDb: DB): UniversalSchemaModel = {
-    throw new UnsupportedOperationException
+  val rowVectors : IndexedSeq[Weights] = __rowVectors.map(this.Weights(_))
+  val colVectors : IndexedSeq[Weights] = __colVectors.map(this.Weights(_))
+
+  def similarity(vec1: Tensor, vec2: Tensor): Double = vec1.cosineSimilarity(vec2)
+  // cosine similarity normalized to lie between 0 and one
+  def similarity01(vec1: Tensor, vec2: Tensor): Double = (1.0 + vec1.cosineSimilarity(vec2)) / 2.0
+
+  def similarity01(row: Int, col: Int): Double = {
+    val rowVec = rowVectors(row).value
+    val colVec = colVectors(col).value
+    similarity01(rowVec, colVec)
   }
 
-  def randomModel(numRows: Int, numCols:Int, dim: Int, random: Random = new Random(0)): UniversalSchemaModel = {
+  def score(rowIdx: Int, colIdx: Int): Double = rowVectors(rowIdx).value.dot(colVectors(colIdx).value)
+
+  def cosSimilarity01(vec1: Tensor, vec2: Tensor): Double = (1.0 + vec1.cosineSimilarity(vec2)) / 2.0
+
+  def getScoredColumns(v: DenseTensor1): Iterable[(Int, Double)] = {
+    colVectors.indices.map(i => (i, cosSimilarity01(v, colVectors(i).value) ))
+  }
+
+  def getScoredRows(v: DenseTensor1): Iterable[(Int, Double)] = {
+    throw new UnsupportedOperationException
+  }
+}
+object UniversalSchemaAdaGradModel{
+  def randomModel(numRows: Int, numCols:Int, dim: Int, random: Random = new Random(0)): UniversalSchemaAdaGradModel = {
     val scale = 1.0 / dim
     def initVector(): Array[Double] = Array.fill[Double](dim)(scale * random.nextGaussian())
     //def initVector(i: Int): Array[Double] = Array.fill[Double](latentDimensionality)(2*random.nextDouble() - 1.0)
     val rowVectors = (0 until numRows).map(i => new DenseTensor1(initVector))
     val colVectors = (0 until numCols).map(i => new DenseTensor1(initVector))
-    new UniversalSchemaModel(rowVectors, colVectors)
+    new UniversalSchemaAdaGradModel(rowVectors, colVectors)
+  }
+
+  def calculateProb(theta: Double): Double = {
+    1.0 / (1.0 + math.exp(-theta))
+  }
+}
+
+class ColumnAverageModel(val rowToCols : Map[Int, Seq[Int]], __colVectors: IndexedSeq[DenseTensor1], val numCols : Int)
+  extends MatrixModel with Parameters {
+
+  val colVectors : IndexedSeq[Weights] = __colVectors.map(this.Weights(_))
+
+  def similarity(vec1: Tensor, vec2: Tensor): Double = vec1.cosineSimilarity(vec2)
+  // cosine similarity normalized to lie between 0 and one
+  def similarity01(vec1: Tensor, vec2: Tensor): Double =
+    (1.0 + vec1.cosineSimilarity(vec2)) / 2.0
+
+  def similarity01(row: Int, col: Int): Double = {
+    score(colVectors(col).value, rowToCols(row).map(colVectors(_).value))
+  }
+
+  def score(targetCol : Tensor, otherCols : Seq[Tensor]): Double = {
+    val avgVec = new DenseTensor1(targetCol.size, 0.0)
+    for (col <- otherCols){
+        avgVec += col
+    }
+    avgVec /= math.max(1.0, otherCols.size)
+
+    targetCol.dot(avgVec)
+  }
+
+  def cosSimilarity01(vec1: Tensor, vec2: Tensor): Double = (1.0 + vec1.cosineSimilarity(vec2)) / 2.0
+
+  def getScoredColumns(v: DenseTensor1): Iterable[(Int, Double)] = {
+    colVectors.indices.map(i => (i, cosSimilarity01(v, colVectors(i).value) ))
+  }
+
+  def getScoredRows(v: DenseTensor1): Iterable[(Int, Double)] = {
+    throw new UnsupportedOperationException
+  }
+}
+object ColumnAverageModel{
+  def randomModel(rowToCols: Map[Int, Seq[Int]], numCols:Int, dim: Int, random: Random = new Random(0)): ColumnAverageModel = {
+    val scale = 1.0 / dim
+    def initVector(): Array[Double] = Array.fill[Double](dim)(scale * random.nextGaussian())
+    //def initVector(i: Int): Array[Double] = Array.fill[Double](latentDimensionality)(2*random.nextDouble() - 1.0)
+    val colVectors = (0 until numCols).map(i => new DenseTensor1(initVector))
+    new ColumnAverageModel(rowToCols, colVectors, numCols)
   }
 
   def calculateProb(theta: Double): Double = {
