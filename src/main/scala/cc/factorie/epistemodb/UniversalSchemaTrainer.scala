@@ -98,47 +98,20 @@ BprTrainer {
   optimizer.initializeWeights(model.parameters)
 
 
-//  override def train(numIters: Int): IndexedSeq[Double] = {
-//    val objSeq = for (t <- 0 until numIters) yield {
-//      val examplesAndObjectives = matrix.getNnzCells().map { case (row, col) => makeExample(row, col) }
-//      val examples = examplesAndObjectives.map(_._1)
-//      val batches = random.shuffle(examples).grouped(batchSize).map(batch => new MiniBatchExample(batch)).toSeq
-//      trainer.processExamples(batches)
-//      examplesAndObjectives.map(_._2).sum
-//    }
-//    objSeq
-//  }
-//
-//  def makeExample(rowIndex: Int, colIndex: Int): (Example, Double) = {
-//
-//    val (posE1, posE2) = this.model.rowToEnts(rowIndex)
-//
-//    val takeE1 = random.nextBoolean()
-//    val negE = random.nextInt(model.numEnts)
-//
-//    val (negE1, negE2) = if (takeE1) {
-//      (negE, posE2)
-//    } else {
-//      (posE1, negE)
-//    }
-//
-//    val posGrad = model.gradient(posE1, posE2, colIndex)
-//    val negGrad = model.gradient(negE1, negE2, colIndex)
-//
-//    val obj = margin + posGrad.twoNorm - negGrad.twoNorm
-//
-//    val posVecE1 = model.entityVectors(posE1)
-//    val posVecE2 = model.entityVectors(posE2)
-//    val negVecE1 = model.entityVectors(negE1)
-//    val negVecE2 = model.entityVectors(negE2)
-//    val colVec = model.colVectors(colIndex)
-//
-//    (new TransEExample(posVecE1, posVecE2, negVecE1, negVecE2, colVec, posGrad, negGrad, obj, margin), obj)
-//
-//  }
+  override def train(numIters: Int): IndexedSeq[Double] = {
+    val objSeq = for (t <- 0 until numIters) yield {
+      val examplesAndObjectives = matrix.getNnzCells().map { case (row, col) => makeExample(row, col) }
+      val examples = examplesAndObjectives.map(_._1)
+      val batches = random.shuffle(examples).grouped(batchSize).map(batch => new MiniBatchExample(batch)).toSeq
+      trainer.processExamples(batches)
+      examplesAndObjectives.map(_._2).sum
+    }
+    objSeq
+  }
 
-  override def updateBprCells(rowIndexTrue: Int, rowIndexFalse: Int, colIndex: Int): Double = {
-    val (posE1, posE2) = this.model.rowToEnts(rowIndexTrue)
+  def makeExample(rowIndex: Int, colIndex: Int): (Example, Double) = {
+
+    val (posE1, posE2) = this.model.rowToEnts(rowIndex)
 
     val takeE1 = random.nextBoolean()
     val negE = random.nextInt(model.numEnts)
@@ -160,9 +133,37 @@ BprTrainer {
     val negVecE2 = model.entityVectors(negE2)
     val colVec = model.colVectors(colIndex)
 
-    trainer.processExample(new TransEExample(posVecE1, posVecE2, negVecE1, negVecE2, colVec, posGrad, negGrad, obj, margin))
-    obj
+    (new TransEExample(posVecE1, posVecE2, negVecE1, negVecE2, colVec, posGrad, negGrad, obj, margin), obj)
+
   }
+
+ def updateBprCells(rowIndexTrue: Int, rowIndexFalse: Int, colIndex: Int): Double = ???
+//  override def updateBprCells(rowIndexTrue: Int, rowIndexFalse: Int, colIndex: Int): Double = {
+//    val (posE1, posE2) = this.model.rowToEnts(rowIndexTrue)
+//
+//    val takeE1 = random.nextBoolean()
+//    val negE = random.nextInt(model.numEnts)
+//
+//    val (negE1, negE2) = if (takeE1) {
+//      (negE, posE2)
+//    } else {
+//      (posE1, negE)
+//    }
+//
+//    val posGrad = model.gradient(posE1, posE2, colIndex)
+//    val negGrad = model.gradient(negE1, negE2, colIndex)
+//
+//    val obj = margin + posGrad.twoNorm - negGrad.twoNorm
+//
+//    val posVecE1 = model.entityVectors(posE1)
+//    val posVecE2 = model.entityVectors(posE2)
+//    val negVecE1 = model.entityVectors(negE1)
+//    val negVecE2 = model.entityVectors(negE2)
+//    val colVec = model.colVectors(colIndex)
+//
+//    trainer.processExample(new TransEExample(posVecE1, posVecE2, negVecE1, negVecE2, colVec, posGrad, negGrad, obj, margin))
+//    obj
+//  }
 }
 
 class RegularizedBprUniversalSchemaTrainer(val regularizer: Double, val stepsize: Double, val dim: Int,
@@ -269,14 +270,13 @@ BprTrainer {
     val scoreFalseCell = model.score(rowIndexFalse, colIndex)
     val theta = scoreTrueCell - scoreFalseCell
     val prob = UniversalSchemaModel.calculateProb(theta)
-    val factor = 1 - (1 / (1 + math.exp(-theta)))
     var thisObjective = math.log(prob)
 
     val colVec = model.colVectors(colIndex)
     val rowVecTrue = model.rowVectors(rowIndexTrue)
     val rowVecFalse = model.rowVectors(rowIndexFalse)
 
-    trainer.processExample(new UniversalSchemaExample(rowVecTrue, rowVecFalse, colVec, factor))
+    trainer.processExample(new UniversalSchemaExample(rowVecTrue, rowVecFalse, colVec, prob))
 
     thisObjective
   }
