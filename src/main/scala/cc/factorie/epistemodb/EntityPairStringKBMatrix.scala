@@ -1,5 +1,8 @@
 package cc.factorie.epistemodb
 
+import java.util
+
+import com.google.common.collect.{BiMap, HashBiMap}
 import com.mongodb._
 import java.io.{Writer, File}
 import scala.Predef._
@@ -15,42 +18,107 @@ import scala.Some
 
 
 
-class TransEKBMatrix {
-  val coocMatrix = new EntityPairStringKBMatrix
+//class TransEKBMatrix {
+//  val coocMatrix = new EntityPairStringKBMatrix
+//
+//  val entityIndexMap = new MemoryIndexMap[String]
+//
+//  def listEntityIndexMap: Map[Int, (Int, Int)] = {
+//    coocMatrix.__rowMap.keyIterator.map(key => {
+//      entityIndexMap.add(key.e1)
+//      entityIndexMap.add(key.e2)
+//      val id1 = entityIndexMap.keyToIndex(key.e1)
+//      val id2 = entityIndexMap.keyToIndex(key.e2)
+//      val pairId = coocMatrix.__rowMap.keyToIndex(key)
+//      (pairId -> (id1, id2))
+//    }).toMap
+//  }
+//}
 
-  val entityIndexMap = new MemoryIndexMap[String]
-
-  def listEntityIndexMap: Map[Int, (Int, Int)] = {
-    coocMatrix.__rowMap.keyIterator.map(key => {
-      entityIndexMap.add(key.e1)
-      entityIndexMap.add(key.e2)
-      val id1 = entityIndexMap.keyToIndex(key.e1)
-      val id2 = entityIndexMap.keyToIndex(key.e2)
-      val pairId = coocMatrix.__rowMap.keyToIndex(key)
-      (pairId -> (id1, id2))
-    }).toMap
+object TransEKBMatrix {
+  private def entitiesAndRelFromLine(line: String, colsPerEnt: Int): (EntityPair, String, Double) = {
+    val parts = line.split("\t")
+    if (parts.length < 2 * colsPerEnt + 2) {
+      throw new IllegalArgumentException("Line specifying matrix cell needs columns for 2 entities, relation, and count.")
+    }
+    val e1: String = parts.slice(0, colsPerEnt).mkString("\t")
+    val e2: String = parts.slice(colsPerEnt, 2 * colsPerEnt).mkString("\t")
+    val rel: String = parts.slice(2 * colsPerEnt, parts.length - 1).mkString("\t")
+    val cellVal: Double = parts(parts.length - 1).toDouble
+    (EntityPair(e1, e2), rel, cellVal)
   }
 
+  // Loads a matrix from a tab-separated file
+  def fromTsv(filename: String, colsPerEnt: Int = 2): TransEKBMatrix = {
+    val kb = new TransEKBMatrix()
+    val tReadStart = System.currentTimeMillis
+    var numRead = 0
+    scala.io.Source.fromFile(filename).getLines.foreach(line => {
+      val (ep, rel, cellVal) = entitiesAndRelFromLine(line, colsPerEnt)
+      kb.set(ep, rel, cellVal)
+
+      numRead += 1
+      if (numRead % 100000 == 0) {
+        val tRead = numRead / (System.currentTimeMillis - tReadStart).toDouble
+        println(f"cells read per millisecond: $tRead%.4f")
+        println(f"Last row: (${ep.e1}s, ${ep.e2}s)")
+        println(f"Last column: (${rel}s)")
+        println(f"Last cell value: $cellVal%.4f")
+      }
+    })
+    println(kb.matrix._numEnts, kb.matrix._numRows, kb.matrix._numCols)
+    kb
+  }
 }
 
-/*
-class TransEKBMatrix(val matrix:CoocMatrix = new CoocMatrix(0,0),
+class TransEKBMatrix(val matrix:EntityPairCoocMatrix = new EntityPairCoocMatrix(0,0,0),
                              val __rowMap: MatrixIndexMap[EntityPair] = new EntityPairMemoryMap(collectionPrefix = MongoWritable.ENTITY_ROW_MAP_PREFIX),
                              val __colMap: MatrixIndexMap[String] = new StringMemoryIndexMap(collectionPrefix = MongoWritable.ENTITY_COL_MAP_PREFIX),
-                             val entityPairMatrix: CoocMatrix = new CoocMatrix(0,0),
                              val __entityMap: MatrixIndexMap[String] = new StringMemoryIndexMap(collectionPrefix = "ENITIIES")
-                              ) extends KBMatrix[EntityRelationKBMatrix, EntityPair, String]  {
+                              ) extends KBMatrix[TransEKBMatrix, EntityPair, String]  {
 
-  def cloneWithNewCells(cells: CoocMatrix): TransEKBMatrix = {
-    new TransEKBMatrix(matrix = cells, __rowMap = this.__rowMap, __colMap = this.__colMap, entityPairMatrix = this.entityPairMatrix, __entityMap = this.__entityMap)
+
+  override def set(ep: EntityPair, rel: String, cellVal: Double) {
+    __entityMap.add(ep.e1)
+    __entityMap.add(ep.e2)
+    val rowNr = __rowMap.add(ep)
+    val colNr = __colMap.add(rel)
+    matrix.set(__entityMap.keyToIndex(ep.e1), __entityMap.keyToIndex(ep.e2), __colMap.keyToIndex(rel), cellVal)
+
   }
 
-  def createEmptyMatrix(): TransEKBMatrix = {
+  def cloneWithNewCells(cells: CoocMatrix): TransEKBMatrix = {
+    val epMatrix = new EntityPairCoocMatrix(numRows, numCols, __entityMap.size)
+    epMatrix.rowEntsBimap = this.matrix.rowEntsBimap
+    epMatrix.rowToColAndVal = cells.rowToColAndVal
+    epMatrix.colToRows = cells.colToRows
+    new TransEKBMatrix(matrix = epMatrix, __rowMap = this.__rowMap, __colMap = this.__colMap)
+
+  }
+
+  def createEmptyMatrix: TransEKBMatrix = {
     new TransEKBMatrix()
   }
 
+  def pruneWithEntities(tRow: Int = 2, tCol: Int = 2): TransEKBMatrix = {
+    val (prunedMatrix, oldToNewRow, oldToNewCol) = matrix.pruneWithEntities(tRow, tCol)
+    val newKb: TransEKBMatrix = this.createEmptyMatrix
+
+    val newToOldCol = oldToNewCol.map(_ swap)
+    val newToOldRow = oldToNewRow.map(_ swap)
+
+    for (rowNr <- 0 until prunedMatrix.numRows()) {
+      for((colNr, cellVal) <- prunedMatrix.getRow(rowNr)) {
+        val rowKey = __rowMap.indexToKey(newToOldRow.get(rowNr).get)
+        val colKey = __colMap.indexToKey(newToOldCol.get(colNr).get)
+        newKb.set(rowKey, colKey, cellVal)
+      }
+    }
+    newKb
+  }
+
 }
-*/
+
 
 
 

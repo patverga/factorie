@@ -328,8 +328,7 @@ BprTrainer {
     val scoreFalseCell = model.score(negColVec.value, sharedRowVecs.map(_.value))
     val theta = scoreTrueCell - scoreFalseCell
     val prob = UniversalSchemaModel.calculateProb(theta)
-    val factor = 1 - (1 / (1 + math.exp(-theta)))
-    var thisObjective = math.log(prob)
+    val thisObjective = if (prob != 0) math.log(prob) else 0.0
 
     trainer.processExample(new ColumnAverageExample(colVec, negColVec, sharedRowVecs))
 

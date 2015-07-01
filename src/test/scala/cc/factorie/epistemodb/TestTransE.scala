@@ -13,28 +13,36 @@ import scala.Some
  */
 class TestTransE extends JUnitSuite  with util.FastLogging {
 
-  @Test def testModelTensors(): Unit ={
-    val numRows = 2
-    val numCols = 2
-    val nnz = 2
-
-    val numTopics = 2
-    val noise1 = 0.1
-
-    // Test whether objective function goes up
-    val random = new Random(0)
-    val m = EntityPairCoocMatrix.randomOneZeroMatrix(numRows, numCols, nnz, random, numTopics, noise1).pruneWithEntities(1,1)._1
-    val rowToEnts = m.rowEntsBimap
-    val model = TransEModel.randomModel(numCols, rowToEnts, numTopics, random)
-
-    for (i <- 0 until numRows){
-      val (e1, e2) = rowToEnts.get(i)
-      val e1Vec =
-    }
-    model.entityVectors
-
-
-  }
+//  @Test def testModelTensors(): Unit ={
+//    val numRows = 2
+//    val numCols = 2
+//    val nnz = 2
+//
+//    val numTopics = 2
+//    val noise1 = 0.1
+//
+//    // Test whether objective function goes up
+//    val random = new Random(0)
+//    val m = EntityPairCoocMatrix.randomOneZeroMatrix(numRows, numCols, nnz, random, numTopics, noise1)//.pruneWithEntities(1,1)._1
+//    val rowToEnts = m.rowEntsBimap
+//    val model = TransEModel.randomModel(numCols, rowToEnts, numTopics, random)
+//
+//    for (i <- 0 until numRows){
+//      val (e1, e2) = rowToEnts.get(i)
+//      val e1Vec = model.entityVectors(e1).value
+//      val e2Vec = model.entityVectors(e2).value
+//      assert(e1Vec(0) != e2Vec(0))
+//      val e1VecBefore = e1Vec.copy
+//      val e2VecBefore = e2Vec.copy
+//      assert(e1Vec(0) == e1VecBefore(0))
+//      e1Vec += e2VecBefore
+//      e1Vec /= 2.0
+//      e2Vec += e1VecBefore
+//      e2Vec /= 2.0
+//      assert(e1Vec(0) == e2Vec(0))
+//      assert(e1Vec(0) != e1VecBefore(0), println(e1Vec(0), e1VecBefore(0), e2Vec(0), e2VecBefore(0)))
+//    }
+// }
 
   @Test def testSplitRandomizedTest() {
     val numRows = 1000
@@ -44,42 +52,42 @@ class TestTransE extends JUnitSuite  with util.FastLogging {
     val numTopics = 100
     val noise1 = 0.1
 
-    // Test whether objective function goes up
-    for (seed <- 0 until 2) {
-      val random = new Random(seed)
-      val m = EntityPairCoocMatrix.randomOneZeroMatrix(numRows, numCols, nnz, random, numTopics, noise1).pruneWithEntities(1,1)._1
-      println("nnz: " + m.nnz())
-
-      val stepsize = 0.1
-      val regularizer = 0.01
-      val margin = 2.0
-      val dim = 10
-      val iters = 10
-
-      val rowToEnts = m.rowEntsBimap
-      val model = TransEModel.randomModel(numCols, rowToEnts, numTopics, random)
-
-      for (i <- 0 until model.numEnts)
-        assertTrue(model.rowToEnts(i) == (i, i + model.numEnts))
-      for (i <- 0 until model.numEnts)
-          assertTrue(model.entityVectors(i).value != null)
-      for (i <- 0 until numCols)
-        assertTrue(model.colVectors(i).value != null)
-
-      val trainer = new TransETrainer(regularizer, stepsize, margin, dim, m, model, random)
-
-      val objectiveValues = trainer.train(iters)
-      assertTrue(objectiveValues(0) < objectiveValues(9))
-      assertTrue(objectiveValues(0) < objectiveValues(4))
-      assertTrue(objectiveValues(4) < objectiveValues(9))
-    }
+//    // Test whether objective function goes up
+//    for (seed <- 0 until 2) {
+//      val random = new Random(seed)
+//      val m = EntityPairCoocMatrix.randomOneZeroMatrix(numRows, numCols, nnz, random, numTopics, noise1).pruneWithEntities(1,1)._1
+//      println("nnz: " + m.nnz())
+//
+//      val stepsize = 0.1
+//      val regularizer = 0.01
+//      val margin = 2.0
+//      val dim = 10
+//      val iters = 10
+//
+//      val rowToEnts = m.rowEntsBimap
+//      val model = TransEModel.randomModel(numCols, rowToEnts, numTopics, random)
+//
+//      for (i <- 0 until model.numEnts)
+//        assertTrue(model.rowToEnts(i) == (i, i + model.numEnts))
+//      for (i <- 0 until model.numEnts)
+//          assertTrue(model.entityVectors(i).value != null)
+//      for (i <- 0 until numCols)
+//        assertTrue(model.colVectors(i).value != null)
+//
+//      val trainer = new TransETrainer(regularizer, stepsize, margin, dim, m, model, random)
+//
+//      val objectiveValues = trainer.train(iters)
+//      assertTrue(objectiveValues(0) < objectiveValues(9))
+//      assertTrue(objectiveValues(0) < objectiveValues(4))
+//      assertTrue(objectiveValues(4) < objectiveValues(9))
+//    }
 
     val numDevNNZ = 0
     val numTestNNZ = 150
 
     for (seed <- 0 until 2) {
       val random = new Random(seed)
-      val m = EntityPairCoocMatrix.randomOneZeroMatrix(numRows, numCols, nnz, random, numTopics, noise1).pruneWithEntities(1,1)._1
+      val m = EntityPairCoocMatrix.randomOneZeroMatrix(numRows, numCols, nnz, random, numTopics, noise1)//.pruneWithEntities(1,1)._1
       val rowToEnts = m.rowEntsBimap
 
       println("nnz: " + m.nnz())

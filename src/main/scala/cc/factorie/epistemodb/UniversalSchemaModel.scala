@@ -224,7 +224,7 @@ extends MatrixModel with Parameters {
 
   def similarity01(row: Int, col: Int) : Double = {
     val ents = rowToEnts(row)
-    similarity01(ents._1, ents._2, row)
+    similarity01(ents._1, ents._2, col)
   }
 
   def cosSimilarity01(vec1: Tensor, vec2: Tensor): Double = (1.0 + vec1.cosineSimilarity(vec2)) / 2.0
@@ -246,7 +246,9 @@ object TransEModel {
     //def initVector(i: Int): Array[Double] = Array.fill[Double](latentDimensionality)(2*random.nextDouble() - 1.0)
 
     // Get maximums of value tuples.
-    val numEnts = entityMap.map(kv => math.max(kv._2._1, kv._2._2)).max+1
+    val numEnts = entityMap.map(kv => {
+      math.max(kv._2._1, kv._2._2)
+    }).max+1
 
     val entVectors = (0 until numEnts).map(i => new DenseTensor1(initVector))
     val colVectors = (0 until numCols).map(i => new DenseTensor1(initVector))
