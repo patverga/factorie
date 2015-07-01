@@ -13,6 +13,29 @@ import scala.Some
  */
 class TestTransE extends JUnitSuite  with util.FastLogging {
 
+  @Test def testModelTensors(): Unit ={
+    val numRows = 2
+    val numCols = 2
+    val nnz = 2
+
+    val numTopics = 2
+    val noise1 = 0.1
+
+    // Test whether objective function goes up
+    val random = new Random(0)
+    val m = EntityPairCoocMatrix.randomOneZeroMatrix(numRows, numCols, nnz, random, numTopics, noise1).pruneWithEntities(1,1)._1
+    val rowToEnts = m.rowEntsBimap
+    val model = TransEModel.randomModel(numCols, rowToEnts, numTopics, random)
+
+    for (i <- 0 until numRows){
+      val (e1, e2) = rowToEnts.get(i)
+      val e1Vec =
+    }
+    model.entityVectors
+
+
+  }
+
   @Test def testSplitRandomizedTest() {
     val numRows = 1000
     val numCols = 10000
