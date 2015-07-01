@@ -93,7 +93,8 @@ BprTrainer {
   val colRegularizer = regularizer
 
   val optimizer = new AdaGradRDA(delta = 0.01 , rate = stepsize, l2 = regularizer)
-  val trainer = new LiteHogwildTrainer(weightsSet = model.parameters, optimizer = optimizer, maxIterations = Int.MaxValue)
+  val trainer = new HogwildTrainer(weightsSet = model.parameters, optimizer = optimizer, maxIterations = Int.MaxValue)
+//  val trainer = new LiteHogwildTrainer(weightsSet = model.parameters, optimizer = optimizer, maxIterations = Int.MaxValue)
 
   optimizer.initializeWeights(model.parameters)
 

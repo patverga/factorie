@@ -13,36 +13,36 @@ import scala.Some
  */
 class TestTransE extends JUnitSuite  with util.FastLogging {
 
-//  @Test def testModelTensors(): Unit ={
-//    val numRows = 2
-//    val numCols = 2
-//    val nnz = 2
-//
-//    val numTopics = 2
-//    val noise1 = 0.1
-//
-//    // Test whether objective function goes up
-//    val random = new Random(0)
-//    val m = EntityPairCoocMatrix.randomOneZeroMatrix(numRows, numCols, nnz, random, numTopics, noise1)//.pruneWithEntities(1,1)._1
-//    val rowToEnts = m.rowEntsBimap
-//    val model = TransEModel.randomModel(numCols, rowToEnts, numTopics, random)
-//
-//    for (i <- 0 until numRows){
-//      val (e1, e2) = rowToEnts.get(i)
-//      val e1Vec = model.entityVectors(e1).value
-//      val e2Vec = model.entityVectors(e2).value
-//      assert(e1Vec(0) != e2Vec(0))
-//      val e1VecBefore = e1Vec.copy
-//      val e2VecBefore = e2Vec.copy
-//      assert(e1Vec(0) == e1VecBefore(0))
-//      e1Vec += e2VecBefore
-//      e1Vec /= 2.0
-//      e2Vec += e1VecBefore
-//      e2Vec /= 2.0
-//      assert(e1Vec(0) == e2Vec(0))
-//      assert(e1Vec(0) != e1VecBefore(0), println(e1Vec(0), e1VecBefore(0), e2Vec(0), e2VecBefore(0)))
-//    }
-// }
+  @Test def testModelTensors(): Unit ={
+    val numRows = 2
+    val numCols = 2
+    val nnz = 2
+
+    val numTopics = 2
+    val noise1 = 0.1
+
+    // Test whether objective function goes up
+    val random = new Random(0)
+    val m = EntityPairCoocMatrix.randomOneZeroMatrix(numRows, numCols, nnz, random, numTopics, noise1)//.pruneWithEntities(1,1)._1
+    val rowToEnts = m.rowEntsBimap
+    val model = TransEModel.randomModel(numCols, rowToEnts, numTopics, random)
+
+    for (i <- 0 until numRows){
+      val (e1, e2) = rowToEnts.get(i)
+      val e1Vec = model.entityVectors(e1).value
+      val e2Vec = model.entityVectors(e2).value
+      assert(e1Vec(0) != e2Vec(0))
+      val e1VecBefore = e1Vec.copy
+      val e2VecBefore = e2Vec.copy
+      assert(e1Vec(0) == e1VecBefore(0))
+      e1Vec += e2VecBefore
+      e1Vec /= 2.0
+      e2Vec += e1VecBefore
+      e2Vec /= 2.0
+      assert(e1Vec(0) == e2Vec(0))
+      assert(e1Vec(0) != e1VecBefore(0), println(e1Vec(0), e1VecBefore(0), e2Vec(0), e2VecBefore(0)))
+    }
+ }
 
   @Test def testSplitRandomizedTest() {
     val numRows = 1000
