@@ -5,7 +5,7 @@ import com.mongodb._
 import org.bson.types.BasicBSONList
 import scala.util.Random
 import cc.factorie.la.{Tensor2, SparseTensor}
-import com.google.common.collect.HashBiMap
+import com.google.common.collect.{BiMap, HashBiMap}
 import scala.collection.JavaConversions._
 
 /**
@@ -318,8 +318,8 @@ val: <DOUBLE>
   */
 }
 
-class EntityPairCoocMatrix(_numRows: Int, _numCols:Int, var _numEnts: Int) extends CoocMatrix(_numRows,  _numCols) {
-  var rowEntsBimap: HashBiMap[Int, (Int, Int)] = HashBiMap.create[Int, (Int, Int)]()
+class EntityPairCoocMatrix(numRows: Int, numCols:Int, var _numEnts: Int) extends CoocMatrix(numRows,  numCols) {
+  var rowEntsBimap: BiMap[Int, (Int, Int)] = HashBiMap.create[Int, (Int, Int)]()
 
   override def set(rowNr: Int, colNr: Int, cellValue: Double) {
     if (rowNr>=_numRows) {
@@ -329,13 +329,12 @@ class EntityPairCoocMatrix(_numRows: Int, _numCols:Int, var _numEnts: Int) exten
   }
 
   def set(e1: Int, e2:Int, colNr: Int, cellValue: Double) {
-    val rowNr = if (rowEntsBimap.containsValue((e1,e2))) {
-      rowEntsBimap.inverse().get((e1,e2))
-    } else {
+    if (!rowEntsBimap.containsValue((e1,e2))) {
       _numEnts = math.max(_numEnts, math.max(e1 + 1, e2 + 1))
       rowEntsBimap.put(_numRows, (e1, e2))
-      _numRows
+      _numRows += 1
     }
+    val rowNr = rowEntsBimap.inverse().get((e1,e2))
     super.set(rowNr, colNr, cellValue)
   }
 
