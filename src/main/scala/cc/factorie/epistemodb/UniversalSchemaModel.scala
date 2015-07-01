@@ -255,10 +255,6 @@ object TransEModel {
 
     new TransEModel(entVectors, colVectors, entityMap, numEnts)
   }
-
-  def calculateProb(theta: Double): Double = {
-    1.0 / (1.0 + math.exp(-theta))
-  }
 }
 
 
@@ -298,10 +294,6 @@ object UniversalSchemaAdaGradModel{
     val rowVectors = (0 until numRows).map(i => new DenseTensor1(initVector))
     val colVectors = (0 until numCols).map(i => new DenseTensor1(initVector))
     new UniversalSchemaAdaGradModel(rowVectors, colVectors)
-  }
-
-  def calculateProb(theta: Double): Double = {
-    1.0 / (1.0 + math.exp(-theta))
   }
 }
 
@@ -346,9 +338,5 @@ object ColumnAverageModel{
     //def initVector(i: Int): Array[Double] = Array.fill[Double](latentDimensionality)(2*random.nextDouble() - 1.0)
     val colVectors = (0 until numCols).map(i => new DenseTensor1(initVector))
     new ColumnAverageModel(rowToCols, colVectors, numCols)
-  }
-
-  def calculateProb(theta: Double): Double = {
-    1.0 / (1.0 + math.exp(-theta))
   }
 }
