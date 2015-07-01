@@ -215,11 +215,11 @@ extends MatrixModel with Parameters {
 
   def similarity01(e1: Int, e2:Int, col: Int) : Double = {
 //    1.0 - gradient(e1, e2, col).twoNorm
-    -gradient(e1, e2, col).twoNorm
-//    val e1vec = entityVectors(e1).value
-//    val e2vec = entityVectors(e2).value
-//    val colVec = colVectors(col).value
-//    -(e1vec + colVec - e2vec).twoNorm
+//    -gradient(e1, e2, col).twoNorm
+    val e1vec = entityVectors(e1).value
+    val e2vec = entityVectors(e2).value
+    val colVec = colVectors(col).value
+    -(e1vec + colVec - e2vec).twoNorm
   }
 
   def similarity01(row: Int, col: Int) : Double = {

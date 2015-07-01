@@ -19,7 +19,7 @@ class TrainTestTacDataOptions extends cc.factorie.util.DefaultCmdOptions {
 }
 
 
-object TrainTestTacData {
+class TrainTestTacData {
 
   val opts = new TrainTestTacDataOptions
 
@@ -64,8 +64,9 @@ object TrainTestTacData {
     "per:stateorprovince_of_death",
     "per:statesorprovinces_of_residence",
     "per:title")
-
-    def main(args: Array[String]) : Unit = {
+}
+object TrainTestTacData  extends TrainTestTacData{
+  def main(args: Array[String]) : Unit = {
       opts.parse(args)
 
       val tReadStart = System.currentTimeMillis
@@ -124,4 +125,58 @@ object TrainTestTacData {
 
     }
 
+}
+
+object TrainTestTacDataColAverage extends TrainTestTacData{
+  def main(args: Array[String]) : Unit = {
+    opts.parse(args)
+
+    val tReadStart = System.currentTimeMillis
+    //      val kb = EntityRelationKBMatrix.fromTsv(opts.tacData.value).prune(2,1)
+    val kb = StringStringKBMatrix.fromTsv(opts.tacData.value).prune(2,1)
+    val tRead = (System.currentTimeMillis - tReadStart)/1000.0
+    println(f"Reading from file and pruning took $tRead%.2f s")
+
+    println("Stats:")
+    println("Num Rows:" + kb.numRows())
+    println("Num Cols:" + kb.numCols())
+    println("Num cells:" + kb.nnz())
+
+    val random = new Random(0)
+    val numDev = 0
+    val numTest = 10000
+    val (trainKb, devKb, testKb) = kb.randomTestSplit(numDev, numTest, None, Some(testCols), random)
+    val rowToCols = trainKb.matrix.rowToColAndVal.map{ case (row, cols) => row -> cols.keys.toIndexedSeq}.toMap
+//    val rowToCols = trainKb.__rowMap.keyIterator.map(row => trainKb.__rowMap.keyToIndex(row) -> trainKb.getColsForRow(row).map(col=> trainKb.__colMap.keyToIndex(col)).toIndexedSeq).toMap
+    val model = ColumnAverageModel.randomModel(rowToCols, kb.numCols(), opts.dim.value, random)
+    val trainer = new ColumnAverageTrainer(opts.regularizer.value, opts.stepsize.value, opts.dim.value, trainKb.matrix, model, random)
+
+    var result = model.similaritiesAndLabels(trainKb.matrix, testKb.matrix)
+    println("Initial MAP: " + Evaluator.meanAveragePrecision(result))
+
+    trainer.train(10)
+
+    result = model.similaritiesAndLabels(trainKb.matrix, testKb.matrix)
+    println("MAP after 10 iterations: " + Evaluator.meanAveragePrecision(result))
+
+    trainer.train(40)
+
+    result = model.similaritiesAndLabels(trainKb.matrix, testKb.matrix)
+    println("MAP after 50 iterations: " + Evaluator.meanAveragePrecision(result))
+
+    trainer.train(50)
+
+    result = model.similaritiesAndLabels(trainKb.matrix, testKb.matrix)
+    println("MAP after 100 iterations: " + Evaluator.meanAveragePrecision(result))
+
+    trainer.train(100)
+
+    result = model.similaritiesAndLabels(trainKb.matrix, testKb.matrix)
+    println("MAP after 200 iterations: " + Evaluator.meanAveragePrecision(result))
+
+//    if (!opts.patternsOut.value.isEmpty) {
+//      kb.writeTopPatterns(testCols, model, 0.5, opts.patternsOut.value)
+//    }
+
+  }
 }

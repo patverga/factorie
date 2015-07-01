@@ -43,10 +43,10 @@ class TestColumnAverageModel extends JUnitSuite  with util.FastLogging {
     for (seed <- 0 until 2) {
       val random = new Random(seed)
       val m = CoocMatrix.randomOneZeroMatrix(numRows, numCols, nnz, random, numTopics, noise1).prune(1, 1)._1
-      val rowToCols = m.rowToColAndVal.map{ case (row, cols) => row -> cols.keys.toIndexedSeq}.toMap
 
       println("nnz: " + m.nnz())
       val (mTrain, mDev, mTest) = m.randomTestSplit(numDevNNZ, numTestNNZ, None, Some(Set(0, 1, 2, 3, 4, 5, 6, 7, 8, 9)), random)
+      val rowToCols = mTrain.rowToColAndVal.map{ case (row, cols) => row -> cols.keys.toIndexedSeq}.toMap
 
       val stepsize = 0.1
       val regularizer = 0.01
@@ -71,7 +71,7 @@ class TestColumnAverageModel extends JUnitSuite  with util.FastLogging {
       println("10 iters map: " + Evaluator.meanAveragePrecision(result10))
 
       assertTrue(Evaluator.meanAveragePrecision(result5) > Evaluator.meanAveragePrecision(result0))
-      assertTrue(Evaluator.meanAveragePrecision(result10) > Evaluator.meanAveragePrecision(result5))
+      assertTrue(Evaluator.meanAveragePrecision(result10) > Evaluator.meanAveragePrecision(result0))
     }
   }
 
