@@ -227,15 +227,9 @@ extends MatrixModel with Parameters {
     similarity01(ents._1, ents._2, col)
   }
 
-  def cosSimilarity01(vec1: Tensor, vec2: Tensor): Double = (1.0 + vec1.cosineSimilarity(vec2)) / 2.0
+  override def getScoredColumns(v: DenseTensor1): Iterable[(Int, Double)] = ???
 
-  def getScoredColumns(v: DenseTensor1): Iterable[(Int, Double)] = {
-    colVectors.indices.map(i => (i, cosSimilarity01(v, colVectors(i).value) ))
-  }
-
-  def getScoredRows(v: DenseTensor1): Iterable[(Int, Double)] = {
-    throw new UnsupportedOperationException
-  }
+  override def getScoredRows(v: DenseTensor1): Iterable[(Int, Double)] = ???
 }
 
 

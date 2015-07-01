@@ -68,28 +68,28 @@ class TrainTestTacData {
     "per:statesorprovinces_of_residence",
     "per:title")
 
-  def evaluate(model : MatrixModel, trainer : BprTrainer, trainKb : KBMatrix, testKb: KBMatrix) : Unit = {
-    var result = model.similaritiesAndLabels(trainKb.matrix, testKb.matrix)
+  def evaluate(model : MatrixModel, trainer : BprTrainer, trainKb : CoocMatrix, testKb: CoocMatrix) : Unit = {
+    var result = model.similaritiesAndLabels(trainKb, testKb)
     println("Initial MAP: " + Evaluator.meanAveragePrecision(result))
 
     trainer.train(10)
 
-    result = model.similaritiesAndLabels(trainKb.matrix, testKb.matrix)
+    result = model.similaritiesAndLabels(trainKb, testKb)
     println("MAP after 10 iterations: " + Evaluator.meanAveragePrecision(result))
 
     trainer.train(40)
 
-    result = model.similaritiesAndLabels(trainKb.matrix, testKb.matrix)
+    result = model.similaritiesAndLabels(trainKb, testKb)
     println("MAP after 50 iterations: " + Evaluator.meanAveragePrecision(result))
 
     trainer.train(50)
 
-    result = model.similaritiesAndLabels(trainKb.matrix, testKb.matrix)
+    result = model.similaritiesAndLabels(trainKb, testKb)
     println("MAP after 100 iterations: " + Evaluator.meanAveragePrecision(result))
 
     trainer.train(100)
 
-    result = model.similaritiesAndLabels(trainKb.matrix, testKb.matrix)
+    result = model.similaritiesAndLabels(trainKb, testKb)
     println("MAP after 200 iterations: " + Evaluator.meanAveragePrecision(result))
   }
 
@@ -127,7 +127,7 @@ object TrainTestTacData  extends TrainTestTacData{
           trainKb.matrix, model, random)
       }
 
-      evaluate(model, trainer, trainKb, testKb)
+      evaluate(model, trainer, trainKb.matrix, testKb.matrix)
 
       if (!opts.patternsOut.value.isEmpty) {
         kb.writeTopPatterns(testCols, model, 0.5, opts.patternsOut.value)
@@ -162,7 +162,7 @@ object TrainTestTacDataAdaGrad  extends TrainTestTacData{
     val trainer = new AdaGradUniversalSchemaTrainer(opts.regularizer.value, opts.stepsize.value, opts.dim.value,
         trainKb.matrix, model, random)
 
-    evaluate(model, trainer, trainKb, testKb)
+    evaluate(model, trainer, trainKb.matrix, testKb.matrix)
 //
 //    if (!opts.patternsOut.value.isEmpty) {
 //      kb.writeTopPatterns(testCols, model, 0.5, opts.patternsOut.value)
@@ -195,7 +195,7 @@ object TrainTestTacDataColAverage extends TrainTestTacData{
     val model = ColumnAverageModel.randomModel(rowToCols, kb.numCols(), opts.dim.value, random)
     val trainer = new ColumnAverageTrainer(opts.regularizer.value, opts.stepsize.value, opts.dim.value, trainKb.matrix, model, random)
 
-    evaluate(model, trainer, trainKb, testKb)
+    evaluate(model, trainer, trainKb.matrix, testKb.matrix)
 
     //    if (!opts.patternsOut.value.isEmpty) {
 //      kb.writeTopPatterns(testCols, model, 0.5, opts.patternsOut.value)
@@ -229,7 +229,7 @@ object TrainTestTacDataTransE extends TrainTestTacData{
     val model = TransEModel.randomModel(kb.numCols(), rowToEnts, opts.dim.value, random)
     val trainer = new TransETrainer(opts.regularizer.value, opts.stepsize.value, opts.margin.value, opts.dim.value, trainKb.matrix, model, random)
 
-    evaluate(model, trainer, trainKb, testKb)
+    evaluate(model, trainer, trainKb.matrix, testKb.matrix)
 
 
     //    if (!opts.patternsOut.value.isEmpty) {
