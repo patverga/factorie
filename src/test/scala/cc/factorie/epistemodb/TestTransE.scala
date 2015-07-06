@@ -24,6 +24,8 @@ class TestTransE extends JUnitSuite  with util.FastLogging {
     // Test whether objective function goes up
     val random = new Random(0)
     val m = EntityPairCoocMatrix.randomOneZeroMatrix(numRows, numCols, nnz, random, numTopics, noise1)//.pruneWithEntities(1,1)._1
+    val (mTrain, mDev, mTest) = m.randomTestSplit(0, 1, None, Some(Set(0)), random)
+
     val rowToEnts = m.rowEntsBimap
     val model = TransEModel.randomModel(numCols, rowToEnts, numTopics, random)
 
@@ -55,7 +57,7 @@ class TestTransE extends JUnitSuite  with util.FastLogging {
 //    // Test whether objective function goes up
 //    for (seed <- 0 until 2) {
 //      val random = new Random(seed)
-//      val m = EntityPairCoocMatrix.randomOneZeroMatrix(numRows, numCols, nnz, random, numTopics, noise1).pruneWithEntities(1,1)._1
+//      val m = EntityPairCoocMatrix.randomOneZeroMatrix(numRows, numCols, nnz, random, numTopics, noise1)//.pruneWithEntities(1,1)._1
 //      println("nnz: " + m.nnz())
 //
 //      val stepsize = 0.1
@@ -67,8 +69,8 @@ class TestTransE extends JUnitSuite  with util.FastLogging {
 //      val rowToEnts = m.rowEntsBimap
 //      val model = TransEModel.randomModel(numCols, rowToEnts, numTopics, random)
 //
-//      for (i <- 0 until model.numEnts)
-//        assertTrue(model.rowToEnts(i) == (i, i + model.numEnts))
+//      for (i <- 0 until numRows)
+//        assertTrue(model.rowToEnts(i) == (i, i + numRows))
 //      for (i <- 0 until model.numEnts)
 //          assertTrue(model.entityVectors(i).value != null)
 //      for (i <- 0 until numCols)

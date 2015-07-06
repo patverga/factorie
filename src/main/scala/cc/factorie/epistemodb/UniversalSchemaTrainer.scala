@@ -70,7 +70,7 @@ abstract class BprTrainer {
 }
 
 class TransEExample(val posVecE1: Weights, val posVecE2: Weights, val negVecE1: Weights, val negVecE2: Weights,
-                    val colVec: Weights, posGrad : Tensor, negGrad : Tensor, obj : Double, margin : Double)
+                    val colVec: Weights, posGrad : Tensor, negGrad : Tensor, obj : Double, takeE1 : Boolean)
   extends Example {
 
   def accumulateValueAndGradient(value: DoubleAccumulator, gradient: WeightsMapAccumulator): Unit = {
@@ -78,8 +78,10 @@ class TransEExample(val posVecE1: Weights, val posVecE2: Weights, val negVecE1: 
     if (obj > 0.0) {
       gradient.accumulate(posVecE1, posGrad, 1.0)
       gradient.accumulate(posVecE2, posGrad, -1.0)
-      gradient.accumulate(negVecE1, negGrad, -1.0)
-      gradient.accumulate(negVecE2, negGrad, 1.0)
+      if (takeE1)
+        gradient.accumulate(negVecE1, negGrad, -1.0)
+      else
+        gradient.accumulate(negVecE2, negGrad, 1.0)
       gradient.accumulate(colVec, posGrad - negGrad, 1.0)
     }
   }
@@ -93,26 +95,55 @@ BprTrainer {
   val colRegularizer = regularizer
 
   val optimizer = new AdaGradRDA(delta = 0.01 , rate = stepsize, l2 = regularizer)
-  val trainer = new HogwildTrainer(weightsSet = model.parameters, optimizer = optimizer, maxIterations = Int.MaxValue)
-//  val trainer = new LiteHogwildTrainer(weightsSet = model.parameters, optimizer = optimizer, maxIterations = Int.MaxValue)
+//  val trainer = new HogwildTrainer(weightsSet = model.parameters, optimizer = optimizer, maxIterations = Int.MaxValue, logEveryN = 1000)
+  val trainer = new LiteHogwildTrainer(weightsSet = model.parameters, optimizer = optimizer, maxIterations = Int.MaxValue)
 
   optimizer.initializeWeights(model.parameters)
 
 
-  override def train(numIters: Int): IndexedSeq[Double] = {
-    val objSeq = for (t <- 0 until numIters) yield {
-      val examplesAndObjectives = matrix.getNnzCells().map { case (row, col) => makeExample(row, col) }
-      val examples = examplesAndObjectives.map(_._1)
-      val batches = random.shuffle(examples).grouped(batchSize).map(batch => new MiniBatchExample(batch)).toSeq
-      trainer.processExamples(batches)
-      examplesAndObjectives.map(_._2).sum
-    }
-    objSeq
-  }
+//  override def train(numIters: Int): IndexedSeq[Double] = {
+//    val objSeq = for (t <- 0 until numIters) yield {
+//      val examplesAndObjectives = matrix.getNnzCells().map { case (row, col) => makeExample(row, col) }
+//      val examples = examplesAndObjectives.map(_._1)
+//      val batches = random.shuffle(examples).grouped(batchSize).map(batch => new MiniBatchExample(batch)).toSeq
+//      trainer.processExamples(batches)
+//      examplesAndObjectives.map(_._2).sum
+//    }
+//    objSeq
+//  }
+//
+//  def makeExample(rowIndex: Int, colIndex: Int): (Example, Double) = {
+//
+//    val (posE1, posE2) = this.model.rowToEnts(rowIndex)
+//
+//    val takeE1 = random.nextBoolean()
+//    val negE = random.nextInt(model.numEnts)
+//
+//    val (negE1, negE2) = if (takeE1) {
+//      (negE, posE2)
+//    } else {
+//      (posE1, negE)
+//    }
+//
+//
+//    val posGrad = model.gradient(posE1, posE2, colIndex)
+//    val negGrad = model.gradient(negE1, negE2, colIndex)
+//
+//    val obj = margin + posGrad.twoNorm - negGrad.twoNorm
+//
+//    val posVecE1 = model.entityVectors(posE1)
+//    val posVecE2 = model.entityVectors(posE2)
+//    val negVecE1 = model.entityVectors(negE1)
+//    val negVecE2 = model.entityVectors(negE2)
+//    val colVec = model.colVectors(colIndex)
+//
+//    (new TransEExample(posVecE1, posVecE2, negVecE1, negVecE2, colVec, posGrad, negGrad, obj, margin), obj)
+//
+//  }
 
-  def makeExample(rowIndex: Int, colIndex: Int): (Example, Double) = {
-
-    val (posE1, posE2) = this.model.rowToEnts(rowIndex)
+// def updateBprCells(rowIndexTrue: Int, rowIndexFalse: Int, colIndex: Int): Double = ???
+  override def updateBprCells(rowIndexTrue: Int, rowIndexFalse: Int, colIndex: Int): Double = {
+    val (posE1, posE2) = this.model.rowToEnts(rowIndexTrue)
 
     val takeE1 = random.nextBoolean()
     val negE = random.nextInt(model.numEnts)
@@ -134,37 +165,9 @@ BprTrainer {
     val negVecE2 = model.entityVectors(negE2)
     val colVec = model.colVectors(colIndex)
 
-    (new TransEExample(posVecE1, posVecE2, negVecE1, negVecE2, colVec, posGrad, negGrad, obj, margin), obj)
-
+    trainer.processExample(new TransEExample(posVecE1, posVecE2, negVecE1, negVecE2, colVec, posGrad, negGrad, obj, takeE1))
+    obj
   }
-
- def updateBprCells(rowIndexTrue: Int, rowIndexFalse: Int, colIndex: Int): Double = ???
-//  override def updateBprCells(rowIndexTrue: Int, rowIndexFalse: Int, colIndex: Int): Double = {
-//    val (posE1, posE2) = this.model.rowToEnts(rowIndexTrue)
-//
-//    val takeE1 = random.nextBoolean()
-//    val negE = random.nextInt(model.numEnts)
-//
-//    val (negE1, negE2) = if (takeE1) {
-//      (negE, posE2)
-//    } else {
-//      (posE1, negE)
-//    }
-//
-//    val posGrad = model.gradient(posE1, posE2, colIndex)
-//    val negGrad = model.gradient(negE1, negE2, colIndex)
-//
-//    val obj = margin + posGrad.twoNorm - negGrad.twoNorm
-//
-//    val posVecE1 = model.entityVectors(posE1)
-//    val posVecE2 = model.entityVectors(posE2)
-//    val negVecE1 = model.entityVectors(negE1)
-//    val negVecE2 = model.entityVectors(negE2)
-//    val colVec = model.colVectors(colIndex)
-//
-//    trainer.processExample(new TransEExample(posVecE1, posVecE2, negVecE1, negVecE2, colVec, posGrad, negGrad, obj, margin))
-//    obj
-//  }
 }
 
 class RegularizedBprUniversalSchemaTrainer(val regularizer: Double, val stepsize: Double, val dim: Int,
@@ -257,8 +260,6 @@ class AdaGradUniversalSchemaTrainer(val maxNorm: Double, val stepsize: Double, v
 BprTrainer {
 
   val regularizer = 0.01
-  val entityRegularizer = regularizer
-  val colRegularizer = regularizer
 
   val optimizer = new AdaGradRDA(delta = 0.01 , rate = stepsize, l2 = regularizer)
   val trainer = new LiteHogwildTrainer(weightsSet = model.parameters, optimizer = optimizer, maxIterations = Int.MaxValue)
@@ -269,15 +270,14 @@ BprTrainer {
   override def updateBprCells(rowIndexTrue: Int, rowIndexFalse: Int, colIndex: Int): Double = {
     val scoreTrueCell = model.score(rowIndexTrue, colIndex)
     val scoreFalseCell = model.score(rowIndexFalse, colIndex)
-    val theta = scoreTrueCell - scoreFalseCell
-    val prob = UniversalSchemaModel.calculateProb(theta)
-    var thisObjective = math.log(prob)
+    val diff: Double = scoreTrueCell - scoreFalseCell - 0.0
+    val thisObjective = 1 - (1 / (1 + math.exp(-diff)))
 
     val colVec = model.colVectors(colIndex)
     val rowVecTrue = model.rowVectors(rowIndexTrue)
     val rowVecFalse = model.rowVectors(rowIndexFalse)
 
-    trainer.processExample(new UniversalSchemaExample(rowVecTrue, rowVecFalse, colVec, prob))
+    trainer.processExample(new UniversalSchemaExample(rowVecTrue, rowVecFalse, colVec, diff))
 
     thisObjective
   }
@@ -304,8 +304,6 @@ class ColumnAverageTrainer(val maxNorm: Double, val stepsize: Double, val dim: I
 BprTrainer {
 
   val regularizer = 0.01
-  val entityRegularizer = regularizer
-  val colRegularizer = regularizer
 
   val optimizer = new AdaGradRDA(delta = 0.01 , rate = stepsize, l2 = regularizer)
   val trainer = new LiteHogwildTrainer(weightsSet = model.parameters, optimizer = optimizer, maxIterations = Int.MaxValue)
@@ -327,9 +325,8 @@ BprTrainer {
 
     val scoreTrueCell = model.score(colVec.value, sharedRowVecs.map(_.value))
     val scoreFalseCell = model.score(negColVec.value, sharedRowVecs.map(_.value))
-    val theta = scoreTrueCell - scoreFalseCell
-    val prob = UniversalSchemaModel.calculateProb(theta)
-    val thisObjective = if (prob != 0) math.log(prob) else 0.0
+    val diff: Double = scoreTrueCell - scoreFalseCell - 0.0
+    val thisObjective = 1 - (1 / (1 + math.exp(-diff)))
 
     trainer.processExample(new ColumnAverageExample(colVec, negColVec, sharedRowVecs))
 
