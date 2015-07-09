@@ -49,16 +49,22 @@ class ColumnAverageOval(val rowToCols : Map[Int, Seq[Int]], dim : Int, val numCo
         case "max" =>
           values.max
         case "cbow" =>
-          values.sum / math.min(1.0, values.size)
+          values.sum / values.size
         case _ => throw new NotImplementedError(s"$scoreType is not a valid value for neighborhood")
       }
   }
 
+  def scoreAndMax(targetCol : DiagonalEllipticLike, otherCols : Seq[DiagonalEllipticLike]): (Double, Int) =
+  {
+    val values = otherCols.map(oval => energy.value(targetCol, oval))
+    if (values.isEmpty)
+      (0.0, -1)
+    else
+      values.zipWithIndex.maxBy(_._1)
+  }
+
   def cosSimilarity01(vec1: Tensor, vec2: Tensor): Double = (1.0 + vec1.cosineSimilarity(vec2)) / 2.0
 
-  def getScoredColumns(v: DenseTensor1): Iterable[(Int, Double)] = ???
-
-  def getScoredRows(v: DenseTensor1): Iterable[(Int, Double)] = ???
 }
 
 object ColumnAverageOval {
@@ -110,6 +116,7 @@ class ColumnAverageOvalTrainer(val maxNorm: Double, val stepsize: Double, val di
   extends BprTrainer {
 
   val regularizer = 0.01
+  val margin = 1.0
 
   val varianceOptimizer = new AdaGrad(stepsize, delta) with WeightDecayStep with HypercubeConstraintStep with SynchronizedWeightsStep {
     val min = varianceMin
@@ -117,7 +124,7 @@ class ColumnAverageOvalTrainer(val maxNorm: Double, val stepsize: Double, val di
     val lambda = variancel2
   }
 
-  val embeddingOptimizer = new AdaGradRDA(delta = delta, rate = stepsize, l2 = regularizer) with SynchronizedWeights
+  val embeddingOptimizer = new AdaGradRDA(delta = delta, rate = stepsize, l2 = regularizer)  with SynchronizedWeights
 
   val varianceSet = model.colVectors.map(_.variance: Weights).toSet
   val meanSet = model.colVectors.map(_.mean: Weights).toSet
@@ -136,15 +143,15 @@ class ColumnAverageOvalTrainer(val maxNorm: Double, val stepsize: Double, val di
     do negColIndex = random.nextInt(model.numCols) while (model.rowToCols(rowIndexTrue).contains(negColIndex))
     val negColVec = model.colVectors(negColIndex)
 
-
     val scoreTrueCell = model.score(colVec, sharedRowVecs)
     val scoreFalseCell = model.score(negColVec, sharedRowVecs)
-    val diff: Double = scoreTrueCell - scoreFalseCell - 0.0
-    val thisObjective = 1 - (1 / (1 + math.exp(-diff)))
+    val diff: Double = scoreTrueCell - scoreFalseCell - margin
+    val objective = 1 - (1 / (1 + math.exp(-diff)))
+    val factor = if(objective > 0.0) 1.0 else 0.0
 
-    trainer.processExample(new ColumnAverageOvalExample(model.energy, colVec, negColVec, sharedRowVecs, scoreType = model.scoreType))
+    trainer.processExamples(Seq(new ColumnAverageOvalExample(model.energy, colVec, negColVec, sharedRowVecs, scoreType = model.scoreType)))
 
-    thisObjective
+    objective
   }
 }
 
@@ -185,44 +192,3 @@ class CBOWDiagonalGaussianLogExpectedLikelihoodEnergy(lambda: Double = 1.0) exte
 }
 
 
-sealed trait OvalType
-case object DiagonalGaussian extends OvalType
-case object DiagonalCauchy extends OvalType
-case object DiagonalNull extends OvalType
-case object SphericalGaussian extends OvalType
-case object SphericalCauchy extends OvalType
-
-trait EnergyFunction2[V1, V2] {
-  def valueAndGradient(v1: V1, v2: V2): (Double, EnergyGradient2)
-  def value(v1: V1, v2: V2): Double = valueAndGradient(v1, v2)._1
-}
-trait EnergyFunction3[V1, V2, V3] {
-  def valueAndGradient(v1: V1, v2: V2, v3: V3): (Double, EnergyGradient3)
-  def value(v1: V1, v2: V2, v3: V3): Double = valueAndGradient(v1, v2, v3)._1
-}
-
-case class EnergyGradient2(v1grad: WeightsMap, v2grad: WeightsMap)
-case class EnergyGradient3(v1grad: WeightsMap, v2grad: WeightsMap, v3grad: WeightsMap)
-
-trait DiagonalEllipticLike {
-  def variance: Weights1
-  def mean: Weights1
-}
-
-class DiagonalElliptic(params: Parameters, dims: Int)(implicit r: Random) extends DiagonalEllipticLike {
-  var mean = params.Weights(new DenseTensor1(dims))
-  mean.value := Array.fill(dims)(r.nextDouble() / dims / 10 - 0.5 / dims / 10)
-  var variance = params.Weights(new DenseTensor1(dims))
-  variance.value := Array.fill(dims)(1.0)
-}
-
-class DiagonalEllipticPrecomputed(params: Parameters, __mean: DenseTensor1, __variance: DenseTensor1)(implicit r: Random) extends DiagonalEllipticLike {
-  val mean = params.Weights(__mean)
-  val variance = params.Weights(__variance)
-}
-
-trait SphericalEllipticLike {
-  // this should be 1-dimensional with variance in 0th position
-  def variance: Weights1
-  def mean: Weights1
-}

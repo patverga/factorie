@@ -223,7 +223,7 @@ class NormConstrainedBprUniversalSchemaTrainer(val maxNorm: Double, val stepsize
     val theta = scoreTrueCell - scoreFalseCell
     val prob = UniversalSchemaModel.calculateProb(theta)
 
-    var thisObjective = math.log(prob)
+    val thisObjective = math.log(prob)
 
     val step = stepsize * (1 - prob)
     val colVec = model.colVectors(colIndex).copy
@@ -242,10 +242,10 @@ class NormConstrainedBprUniversalSchemaTrainer(val maxNorm: Double, val stepsize
 }
 
 
-class UniversalSchemaExample(rowVecTrue : Weights, rowVecFalse : Weights, colVec : Weights, var factor : Double) extends Example {
+class UniversalSchemaExample(rowVecTrue : Weights, rowVecFalse : Weights, colVec : Weights, factor : Double) extends Example {
 
-  factor = 1.0
-  def accumulateValueAndGradient(value: DoubleAccumulator, gradient: WeightsMapAccumulator): Unit = {
+  def accumulateValueAndGradient(value: DoubleAccumulator, gradient: WeightsMapAccumulator): Unit =
+  {
     gradient.accumulate(rowVecTrue, colVec.value, factor)
     gradient.accumulate(colVec, rowVecTrue.value, factor)
 
@@ -260,6 +260,7 @@ class AdaGradUniversalSchemaTrainer(val maxNorm: Double, val stepsize: Double, v
 BprTrainer {
 
   val regularizer = 0.01
+  val margin = 1.0
 
   val optimizer = new AdaGradRDA(delta = 0.01 , rate = stepsize, l2 = regularizer)
   val trainer = new LiteHogwildTrainer(weightsSet = model.parameters, optimizer = optimizer, maxIterations = Int.MaxValue)
@@ -270,26 +271,27 @@ BprTrainer {
   override def updateBprCells(rowIndexTrue: Int, rowIndexFalse: Int, colIndex: Int): Double = {
     val scoreTrueCell = model.score(rowIndexTrue, colIndex)
     val scoreFalseCell = model.score(rowIndexFalse, colIndex)
-    val diff: Double = scoreTrueCell - scoreFalseCell - 0.0
-    val thisObjective = 1 - (1 / (1 + math.exp(-diff)))
+    val diff: Double = scoreTrueCell - scoreFalseCell - margin
+    val objective = 1 - (1 / (1 + math.exp(-diff)))
+    val factor = if(objective > 0.0) 1.0 else 0.0
 
     val colVec = model.colVectors(colIndex)
     val rowVecTrue = model.rowVectors(rowIndexTrue)
     val rowVecFalse = model.rowVectors(rowIndexFalse)
 
-    trainer.processExample(new UniversalSchemaExample(rowVecTrue, rowVecFalse, colVec, diff))
+    trainer.processExample(new UniversalSchemaExample(rowVecTrue, rowVecFalse, colVec, factor))
 
-    thisObjective
+    objective
   }
 }
 
 
-class ColumnAverageExample(posColVec : Weights, negColVec : Weights, sharedRowVecs : Seq[Weights]) extends Example {
+class ColumnAverageExample(posColVec : Weights, negColVec : Weights, sharedRowVecs : Seq[Weights], factor : Double) extends Example {
 
-  val factor = 1.0
   def accumulateValueAndGradient(value: DoubleAccumulator, gradient: WeightsMapAccumulator): Unit = {
 
-    sharedRowVecs.foreach(colVec => {
+    sharedRowVecs.foreach(colVec =>
+    {
       gradient.accumulate(posColVec, colVec.value, factor)
       gradient.accumulate(colVec, posColVec.value, factor)
 
@@ -313,24 +315,34 @@ BprTrainer {
 
   override def updateBprCells(rowIndexTrue: Int, rowIndexFalse: Int, colIndex: Int): Double =
   {
-    val colVec = model.colVectors(colIndex)
+    val posColVec = model.colVectors(colIndex)
     val sharedRowVecs = for (col <- model.rowToCols(rowIndexTrue) if col != colIndex)
       yield model.colVectors(col)
 
-
-    var negColIndex = -1
-    do negColIndex = random.nextInt(model.numCols) while (model.rowToCols(rowIndexTrue).contains(negColIndex))
+    var negColIndex = random.nextInt(model.numCols)
+    while (model.rowToCols(rowIndexTrue).contains(negColIndex)) negColIndex = random.nextInt(model.numCols)
     val negColVec = model.colVectors(negColIndex)
 
-
-    val scoreTrueCell = model.score(colVec.value, sharedRowVecs.map(_.value))
-    val scoreFalseCell = model.score(negColVec.value, sharedRowVecs.map(_.value))
-    val diff: Double = scoreTrueCell - scoreFalseCell - 0.0
-    val thisObjective = 1 - (1 / (1 + math.exp(-diff)))
-
-    trainer.processExample(new ColumnAverageExample(colVec, negColVec, sharedRowVecs))
-
-    thisObjective
+    val (ex, objective) = model.scoreType match {
+      case "cbow" =>
+        val scoreTrueCell = model.score(posColVec.value, sharedRowVecs.map(_.value))
+        val scoreFalseCell = model.score(negColVec.value, sharedRowVecs.map(_.value))
+        val diff = scoreTrueCell - scoreFalseCell - 0.0
+        val objective = 1 - (1 / (1 + math.exp(-diff)))
+        val factor = if(objective > 0.0) 1.0 else 0.0
+        (new ColumnAverageExample(posColVec, negColVec, sharedRowVecs, factor), objective)
+      case "max" =>
+        val scoreTrueCell = model.scoreAndMax(posColVec.value, sharedRowVecs.map(_.value))
+        val scoreFalseCell = model.scoreAndMax(negColVec.value, sharedRowVecs.map(_.value))
+        val maxOtherColVec = sharedRowVecs(scoreTrueCell._2)
+        val diff = scoreTrueCell._1 - scoreFalseCell._1 - 0.0
+        val objective = 1 - (1 / (1 + math.exp(-diff)))
+        val factor = if(objective > 0.0) 1.0 else 0.0
+        (new UniversalSchemaExample(posColVec, negColVec, maxOtherColVec, factor), objective)
+      case _ => throw new NotImplementedError(s"${model.scoreType} is not a valid score type")
+    }
+    trainer.processExample(ex)
+    objective
   }
 }
 

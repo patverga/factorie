@@ -79,9 +79,9 @@ abstract class MatrixModel {
     }}.toMap
   }
 
-  def getScoredColumns(v: DenseTensor1): Iterable[(Int, Double)]
+  def getScoredColumns(v: DenseTensor1): Iterable[(Int, Double)] = ???
 
-  def getScoredRows(v: DenseTensor1): Iterable[(Int, Double)]
+  def getScoredRows(v: DenseTensor1): Iterable[(Int, Double)] = ???
 }
 
 
@@ -164,11 +164,11 @@ class UniversalSchemaModel(val rowVectors: IndexedSeq[DenseTensor1], val colVect
 
 
 
-  def getScoredColumns(v: DenseTensor1): Iterable[(Int, Double)] = {
+  override def getScoredColumns(v: DenseTensor1): Iterable[(Int, Double)] = {
     colVectors.indices.map(i => (i, similarity01(v, colVectors(i)) ))
   }
 
-  def getScoredRows(v: DenseTensor1): Iterable[(Int, Double)] = {
+  override def getScoredRows(v: DenseTensor1): Iterable[(Int, Double)] = {
     throw new UnsupportedOperationException
   }
 
@@ -227,9 +227,6 @@ extends MatrixModel with Parameters {
     similarity01(ents._1, ents._2, col)
   }
 
-  override def getScoredColumns(v: DenseTensor1): Iterable[(Int, Double)] = ???
-
-  override def getScoredRows(v: DenseTensor1): Iterable[(Int, Double)] = ???
 }
 
 
@@ -272,26 +269,19 @@ class UniversalSchemaAdaGradModel(__rowVectors: IndexedSeq[DenseTensor1], __colV
 
   def cosSimilarity01(vec1: Tensor, vec2: Tensor): Double = (1.0 + vec1.cosineSimilarity(vec2)) / 2.0
 
-  def getScoredColumns(v: DenseTensor1): Iterable[(Int, Double)] = {
-    colVectors.indices.map(i => (i, cosSimilarity01(v, colVectors(i).value) ))
-  }
-
-  def getScoredRows(v: DenseTensor1): Iterable[(Int, Double)] = {
-    throw new UnsupportedOperationException
-  }
 }
 object UniversalSchemaAdaGradModel{
   def randomModel(numRows: Int, numCols:Int, dim: Int, random: Random = new Random(0)): UniversalSchemaAdaGradModel = {
     val scale = 1.0 / dim
     def initVector(): Array[Double] = Array.fill[Double](dim)(scale * random.nextGaussian())
     //def initVector(i: Int): Array[Double] = Array.fill[Double](latentDimensionality)(2*random.nextDouble() - 1.0)
-    val rowVectors = (0 until numRows).map(i => new DenseTensor1(initVector))
-    val colVectors = (0 until numCols).map(i => new DenseTensor1(initVector))
+    val rowVectors = (0 until numRows).map(i => new DenseTensor1(initVector()))
+    val colVectors = (0 until numCols).map(i => new DenseTensor1(initVector()))
     new UniversalSchemaAdaGradModel(rowVectors, colVectors)
   }
 }
 
-class ColumnAverageModel(val rowToCols : Map[Int, Seq[Int]], __colVectors: IndexedSeq[DenseTensor1], val numCols : Int)
+class ColumnAverageModel(val rowToCols : Map[Int, Seq[Int]], __colVectors: IndexedSeq[DenseTensor1], val numCols : Int, val scoreType : String = "cbow")
   extends MatrixModel with Parameters {
 
   val colVectors : IndexedSeq[Weights] = __colVectors.map(this.Weights(_))
@@ -306,31 +296,37 @@ class ColumnAverageModel(val rowToCols : Map[Int, Seq[Int]], __colVectors: Index
   }
 
   def score(targetCol : Tensor, otherCols : Seq[Tensor]): Double = {
-    val avgVec = new DenseTensor1(targetCol.size, 0.0)
-    for (col <- otherCols){
-        avgVec += col
-    }
-    avgVec /= math.max(1.0, otherCols.size)
+    val values = otherCols.map(otherCol => targetCol.dot(otherCol))
+    if (values.isEmpty)
+      0.0
+    else
+      scoreType match {
+        case "max" =>
+          values.max
+        case "cbow" =>
+          values.sum / values.size
+        case _ => throw new NotImplementedError(s"$scoreType is not a valid value for neighborhood")
+      }
+  }
 
-    targetCol.dot(avgVec)
+  def scoreAndMax(targetCol : Tensor, otherCols : Seq[Tensor]): (Double, Int) = {
+    val values = otherCols.map(otherCol => targetCol.dot(otherCol))
+    if (values.isEmpty)
+      (0.0, -1)
+    else
+      values.zipWithIndex.maxBy(_._1)
   }
 
   def cosSimilarity01(vec1: Tensor, vec2: Tensor): Double = (1.0 + vec1.cosineSimilarity(vec2)) / 2.0
 
-  def getScoredColumns(v: DenseTensor1): Iterable[(Int, Double)] = {
-    colVectors.indices.map(i => (i, cosSimilarity01(v, colVectors(i).value) ))
-  }
-
-  def getScoredRows(v: DenseTensor1): Iterable[(Int, Double)] = {
-    throw new UnsupportedOperationException
-  }
 }
 object ColumnAverageModel{
-  def randomModel(rowToCols: Map[Int, Seq[Int]], numCols:Int, dim: Int, random: Random = new Random(0)): ColumnAverageModel = {
+  def randomModel(rowToCols: Map[Int, Seq[Int]], numCols:Int, dim: Int, random: Random = new Random(0), scoreType : String = "cbow")
+  : ColumnAverageModel = {
     val scale = 1.0 / dim
     def initVector(): Array[Double] = Array.fill[Double](dim)(scale * random.nextGaussian())
     //def initVector(i: Int): Array[Double] = Array.fill[Double](latentDimensionality)(2*random.nextDouble() - 1.0)
     val colVectors = (0 until numCols).map(i => new DenseTensor1(initVector))
-    new ColumnAverageModel(rowToCols, colVectors, numCols)
+    new ColumnAverageModel(rowToCols, colVectors, numCols, scoreType)
   }
 }
