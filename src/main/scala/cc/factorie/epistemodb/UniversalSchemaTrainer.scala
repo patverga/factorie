@@ -284,7 +284,7 @@ class TransETrainer(val regularizer: Double, val stepsize: Double, val margin : 
     val negGrad = model.gradient(negE1, negE2, colIndex)
 
     val obj = margin + posGrad.twoNorm - negGrad.twoNorm
-    val factor = 1.0 //if (obj > 0.0) 1.0 else 0.0
+    val factor = if (obj > 0.0) 1.0 else 0.0
 
     val posVecE1 = model.entityVectors(posE1)
     val posVecE2 = model.entityVectors(posE2)

@@ -110,14 +110,19 @@ class TestTransE extends JUnitSuite  with util.FastLogging {
       val model10 = TransEModel.randomModel(numCols, rowToEnts, numTopics, random)
       val trainer10 = new TransETrainer(regularizer, stepsize, margin, dim, mTrain, model10, random)
       trainer10.train(10)
-
+      println("--")
+      val model25 = TransEModel.randomModel(numCols, rowToEnts, numTopics, random)
+      val trainer25 = new TransETrainer(regularizer, stepsize, margin, dim, mTrain, model25, random)
+      trainer25.train(25)
       val result0 = model0.similaritiesAndLabels(mTrain, mTest)
       val result5 = model5.similaritiesAndLabels(mTrain, mTest)
       val result10 = model10.similaritiesAndLabels(mTrain, mTest)
+      val result25 = model25.similaritiesAndLabels(mTrain, mTest)
 
       println("0 iters map: " + Evaluator.meanAveragePrecision(result0))
       println("5 iters map: " + Evaluator.meanAveragePrecision(result5))
       println("10 iters map: " + Evaluator.meanAveragePrecision(result10))
+      println("25 iters map: " + Evaluator.meanAveragePrecision(result25))
 
       assertTrue(Evaluator.meanAveragePrecision(result5) > Evaluator.meanAveragePrecision(result0))
       assertTrue(Evaluator.meanAveragePrecision(result10) > Evaluator.meanAveragePrecision(result5))
