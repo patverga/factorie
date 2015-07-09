@@ -14,7 +14,7 @@ class TrainTestTacDataOptions extends cc.factorie.util.DefaultCmdOptions {
   val dim = new CmdOption("dim", 100, "INT", "dimensionality of data")
   val stepsize = new CmdOption("stepsize", 0.1, "DOUBLE", "step size")
   val maxNorm =  new CmdOption("max-norm", 3.0, "DOUBLE", "maximum l2-norm for vectors")
-  val margin =  new CmdOption("margin", 1.0, "DOUBLE", "size of margin to use for training TransE")
+  val margin =  new CmdOption("margin", 1.0, "DOUBLE", "size of margin to use for training")
   val useMaxNorm =  new CmdOption("use-max-norm", true, "BOOLEAN", "whether to use maximum l2-norm for vectors")
   val regularizer = new CmdOption("regularizer", 0.01, "DOUBLE", "regularizer")
 
@@ -159,7 +159,7 @@ object TrainTestTacDataAdaGrad  extends TrainTestTacData{
 
     val model = UniversalSchemaAdaGradModel.randomModel(kb.numRows(), kb.numCols(), opts.dim.value, random)
 
-    val trainer = new AdaGradUniversalSchemaTrainer(opts.regularizer.value, opts.stepsize.value, opts.dim.value,
+    val trainer = new AdaGradUniversalSchemaTrainer(opts.regularizer.value, opts.stepsize.value, opts.dim.value, opts.margin.value,
         trainKb.matrix, model, random)
 
     evaluate(model, trainer, trainKb.matrix, testKb.matrix)
@@ -191,9 +191,8 @@ object TrainTestTacDataColAverage extends TrainTestTacData{
     val numTest = 10000
     val (trainKb, devKb, testKb) = kb.randomTestSplit(numDev, numTest, None, Some(testCols), random)
     val rowToCols = trainKb.matrix.rowToColAndVal.map{ case (row, cols) => row -> cols.keys.toIndexedSeq}.toMap
-//    val rowToCols = trainKb.__rowMap.keyIterator.map(row => trainKb.__rowMap.keyToIndex(row) -> trainKb.getColsForRow(row).map(col=> trainKb.__colMap.keyToIndex(col)).toIndexedSeq).toMap
     val model = ColumnAverageModel.randomModel(rowToCols, kb.numCols(), opts.dim.value, random)
-    val trainer = new ColumnAverageTrainer(opts.regularizer.value, opts.stepsize.value, opts.dim.value, trainKb.matrix, model, random)
+    val trainer = new ColumnAverageTrainer(opts.regularizer.value, opts.stepsize.value, opts.dim.value, opts.margin.value, trainKb.matrix, model, random)
 
     evaluate(model, trainer, trainKb.matrix, testKb.matrix)
 
@@ -227,7 +226,7 @@ object TrainTestTacDataTransE extends TrainTestTacData{
     val rowToEnts = kb.matrix.rowEntsBimap
 
     val model = TransEModel.randomModel(kb.numCols(), rowToEnts, opts.dim.value, random)
-    val trainer = new TransETrainer(opts.regularizer.value, opts.stepsize.value, opts.margin.value, opts.dim.value, trainKb.matrix, model, random)
+    val trainer = new TransETrainer(opts.regularizer.value, opts.stepsize.value, opts.dim.value, opts.margin.value, trainKb.matrix, model, random)
 
     evaluate(model, trainer, trainKb.matrix, testKb.matrix)
 

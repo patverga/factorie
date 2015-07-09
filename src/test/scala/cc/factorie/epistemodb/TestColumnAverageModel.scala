@@ -58,16 +58,17 @@ class TestColumnAverageModel extends JUnitSuite  with util.FastLogging {
 
       val stepsize = 0.1
       val regularizer = 0.01
+      val margin = 1.0
       val dim = 10
 
       // Train model for different number of iterations
       val model0 = ColumnAverageModel.randomModel(rowToCols, numCols, dim, random, scoreType)
       val model5 = ColumnAverageModel.randomModel(rowToCols,  numCols, dim, random, scoreType)
-      val trainer5 = new ColumnAverageTrainer(regularizer, stepsize, dim, mTrain, model5, random)
+      val trainer5 = new ColumnAverageTrainer(regularizer, stepsize, dim, margin, mTrain, model5, random)
       trainer5.train(5)
       println("--")
       val model10 = ColumnAverageModel.randomModel(rowToCols, numCols, dim, random, scoreType)
-      val trainer10 = new ColumnAverageTrainer(regularizer, stepsize, dim, mTrain, model10, random)
+      val trainer10 = new ColumnAverageTrainer(regularizer, stepsize, dim, margin, mTrain, model10, random)
       trainer10.train(10)
 
       val result0 = model0.similaritiesAndLabels(mTrain, mTest)

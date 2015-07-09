@@ -154,12 +154,9 @@ class UniversalSchemaExample(posVec : Weights, negVec : Weights, targetVec : Wei
   }
 }
 
-class AdaGradUniversalSchemaTrainer(val maxNorm: Double, val stepsize: Double, val dim: Int,
+class AdaGradUniversalSchemaTrainer(val regularizer: Double, val stepsize: Double, val dim: Int, margin : Double,
                                     val matrix: CoocMatrix, val model: UniversalSchemaAdaGradModel, val random: Random) extends
 BprTrainer {
-
-  val regularizer = 0.01
-  val margin = 1.0
 
   val optimizer = new AdaGradRDA(delta = 0.01 , rate = stepsize, l2 = regularizer)
   val trainer = new LiteHogwildTrainer(weightsSet = model.parameters, optimizer = optimizer, maxIterations = Int.MaxValue)
@@ -200,12 +197,10 @@ class ColumnAverageExample(posColVec : Weights, negColVec : Weights, sharedRowVe
   }
 }
 
-class ColumnAverageTrainer(val maxNorm: Double, val stepsize: Double, val dim: Int,
+class ColumnAverageTrainer(val regularizer: Double, val stepsize: Double, val dim: Int, val margin : Double,
                                     val matrix: CoocMatrix, val model: ColumnAverageModel, val random: Random) extends
 BprTrainer {
 
-  val regularizer = 0.01
-  val margin = 1.0
 
   val optimizer = new AdaGradRDA(delta = 0.01 , rate = stepsize, l2 = regularizer)
   val trainer = new LiteHogwildTrainer(weightsSet = model.parameters, optimizer = optimizer, maxIterations = Int.MaxValue)
@@ -261,7 +256,7 @@ class TransEExample(val posVecE1: Weights, val posVecE2: Weights, val negVecE1: 
   }
 }
 
-class TransETrainer(val regularizer: Double, val stepsize: Double, val margin : Double, val dim: Int,
+class TransETrainer(val regularizer: Double, val stepsize: Double, val dim: Int, val margin : Double,
                     val matrix: CoocMatrix, val model: TransEModel, val random: Random) extends BprTrainer
 {
   val optimizer = new AdaGradRDA(delta = 0.01 , rate = stepsize, l2 = regularizer)
