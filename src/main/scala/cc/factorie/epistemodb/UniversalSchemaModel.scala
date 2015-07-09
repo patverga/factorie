@@ -241,8 +241,8 @@ object TransEModel {
       math.max(kv._2._1, kv._2._2)
     }).max+1
 
-    val entVectors = (0 until numEnts).map(i => new DenseTensor1(initVector))
-    val colVectors = (0 until numCols).map(i => new DenseTensor1(initVector))
+    val entVectors = (0 until numEnts).map(i => new DenseTensor1(initVector()))
+    val colVectors = (0 until numCols).map(i => new DenseTensor1(initVector()))
 
     new TransEModel(entVectors, colVectors, entityMap, numEnts)
   }

@@ -69,107 +69,6 @@ abstract class BprTrainer {
   }
 }
 
-class TransEExample(val posVecE1: Weights, val posVecE2: Weights, val negVecE1: Weights, val negVecE2: Weights,
-                    val colVec: Weights, posGrad : Tensor, negGrad : Tensor, obj : Double, takeE1 : Boolean)
-  extends Example {
-
-  def accumulateValueAndGradient(value: DoubleAccumulator, gradient: WeightsMapAccumulator): Unit = {
-    value.accumulate(obj)
-    if (obj > 0.0) {
-      gradient.accumulate(posVecE1, posGrad, 1.0)
-      gradient.accumulate(posVecE2, posGrad, -1.0)
-      if (takeE1)
-        gradient.accumulate(negVecE1, negGrad, -1.0)
-      else
-        gradient.accumulate(negVecE2, negGrad, 1.0)
-      gradient.accumulate(colVec, posGrad - negGrad, 1.0)
-    }
-  }
-}
-
-class TransETrainer(val regularizer: Double, val stepsize: Double, val margin : Double, val dim: Int,
-                                           val matrix: CoocMatrix, val model: TransEModel, val random: Random) extends
-BprTrainer {
-  val batchSize = 100
-  val entityRegularizer = regularizer
-  val colRegularizer = regularizer
-
-  val optimizer = new AdaGradRDA(delta = 0.01 , rate = stepsize, l2 = regularizer)
-//  val trainer = new HogwildTrainer(weightsSet = model.parameters, optimizer = optimizer, maxIterations = Int.MaxValue, logEveryN = 1000)
-  val trainer = new LiteHogwildTrainer(weightsSet = model.parameters, optimizer = optimizer, maxIterations = Int.MaxValue)
-
-  optimizer.initializeWeights(model.parameters)
-
-
-//  override def train(numIters: Int): IndexedSeq[Double] = {
-//    val objSeq = for (t <- 0 until numIters) yield {
-//      val examplesAndObjectives = matrix.getNnzCells().map { case (row, col) => makeExample(row, col) }
-//      val examples = examplesAndObjectives.map(_._1)
-//      val batches = random.shuffle(examples).grouped(batchSize).map(batch => new MiniBatchExample(batch)).toSeq
-//      trainer.processExamples(batches)
-//      examplesAndObjectives.map(_._2).sum
-//    }
-//    objSeq
-//  }
-//
-//  def makeExample(rowIndex: Int, colIndex: Int): (Example, Double) = {
-//
-//    val (posE1, posE2) = this.model.rowToEnts(rowIndex)
-//
-//    val takeE1 = random.nextBoolean()
-//    val negE = random.nextInt(model.numEnts)
-//
-//    val (negE1, negE2) = if (takeE1) {
-//      (negE, posE2)
-//    } else {
-//      (posE1, negE)
-//    }
-//
-//
-//    val posGrad = model.gradient(posE1, posE2, colIndex)
-//    val negGrad = model.gradient(negE1, negE2, colIndex)
-//
-//    val obj = margin + posGrad.twoNorm - negGrad.twoNorm
-//
-//    val posVecE1 = model.entityVectors(posE1)
-//    val posVecE2 = model.entityVectors(posE2)
-//    val negVecE1 = model.entityVectors(negE1)
-//    val negVecE2 = model.entityVectors(negE2)
-//    val colVec = model.colVectors(colIndex)
-//
-//    (new TransEExample(posVecE1, posVecE2, negVecE1, negVecE2, colVec, posGrad, negGrad, obj, margin), obj)
-//
-//  }
-
-// def updateBprCells(rowIndexTrue: Int, rowIndexFalse: Int, colIndex: Int): Double = ???
-  override def updateBprCells(rowIndexTrue: Int, rowIndexFalse: Int, colIndex: Int): Double = {
-    val (posE1, posE2) = this.model.rowToEnts(rowIndexTrue)
-
-    val takeE1 = random.nextBoolean()
-    val negE = random.nextInt(model.numEnts)
-
-    val (negE1, negE2) = if (takeE1) {
-      (negE, posE2)
-    } else {
-      (posE1, negE)
-    }
-
-    val posGrad = model.gradient(posE1, posE2, colIndex)
-    val negGrad = model.gradient(negE1, negE2, colIndex)
-
-    val obj = margin + posGrad.twoNorm - negGrad.twoNorm
-
-    val posVecE1 = model.entityVectors(posE1)
-    val posVecE2 = model.entityVectors(posE2)
-    val negVecE1 = model.entityVectors(negE1)
-    val negVecE2 = model.entityVectors(negE2)
-    val colVec = model.colVectors(colIndex)
-
-    trainer.processExample(new TransEExample(posVecE1, posVecE2, negVecE1, negVecE2, colVec, posGrad, negGrad, obj, takeE1))
-    obj
-  }
-}
-
 class RegularizedBprUniversalSchemaTrainer(val regularizer: Double, val stepsize: Double, val dim: Int,
                                             val matrix: CoocMatrix, val model: UniversalSchemaModel, val random: Random) extends
       BprTrainer {
@@ -242,15 +141,15 @@ class NormConstrainedBprUniversalSchemaTrainer(val maxNorm: Double, val stepsize
 }
 
 
-class UniversalSchemaExample(rowVecTrue : Weights, rowVecFalse : Weights, colVec : Weights, factor : Double) extends Example {
+class UniversalSchemaExample(posVec : Weights, negVec : Weights, targetVec : Weights, factor : Double) extends Example {
 
   def accumulateValueAndGradient(value: DoubleAccumulator, gradient: WeightsMapAccumulator): Unit =
   {
-    gradient.accumulate(rowVecTrue, colVec.value, factor)
-    gradient.accumulate(colVec, rowVecTrue.value, factor)
+    gradient.accumulate(posVec, targetVec.value, factor)
+    gradient.accumulate(targetVec, posVec.value, factor)
 
-    gradient.accumulate(rowVecFalse, colVec.value, -factor)
-    gradient.accumulate(colVec, rowVecFalse.value, -factor)
+    gradient.accumulate(negVec, targetVec.value, -factor)
+    gradient.accumulate(targetVec, negVec.value, -factor)
 
   }
 }
@@ -285,11 +184,11 @@ BprTrainer {
   }
 }
 
-
-class ColumnAverageExample(posColVec : Weights, negColVec : Weights, sharedRowVecs : Seq[Weights], factor : Double) extends Example {
+class ColumnAverageExample(posColVec : Weights, negColVec : Weights, sharedRowVecs : Seq[Weights], var factor : Double) extends Example {
 
   def accumulateValueAndGradient(value: DoubleAccumulator, gradient: WeightsMapAccumulator): Unit = {
 
+//    factor = factor / math.max(1.0, sharedRowVecs.size)
     sharedRowVecs.foreach(colVec =>
     {
       gradient.accumulate(posColVec, colVec.value, factor)
@@ -306,6 +205,7 @@ class ColumnAverageTrainer(val maxNorm: Double, val stepsize: Double, val dim: I
 BprTrainer {
 
   val regularizer = 0.01
+  val margin = 1.0
 
   val optimizer = new AdaGradRDA(delta = 0.01 , rate = stepsize, l2 = regularizer)
   val trainer = new LiteHogwildTrainer(weightsSet = model.parameters, optimizer = optimizer, maxIterations = Int.MaxValue)
@@ -327,7 +227,7 @@ BprTrainer {
       case "cbow" =>
         val scoreTrueCell = model.score(posColVec.value, sharedRowVecs.map(_.value))
         val scoreFalseCell = model.score(negColVec.value, sharedRowVecs.map(_.value))
-        val diff = scoreTrueCell - scoreFalseCell - 0.0
+        val diff = scoreTrueCell - scoreFalseCell - margin
         val objective = 1 - (1 / (1 + math.exp(-diff)))
         val factor = if(objective > 0.0) 1.0 else 0.0
         (new ColumnAverageExample(posColVec, negColVec, sharedRowVecs, factor), objective)
@@ -335,7 +235,7 @@ BprTrainer {
         val scoreTrueCell = model.scoreAndMax(posColVec.value, sharedRowVecs.map(_.value))
         val scoreFalseCell = model.scoreAndMax(negColVec.value, sharedRowVecs.map(_.value))
         val maxOtherColVec = sharedRowVecs(scoreTrueCell._2)
-        val diff = scoreTrueCell._1 - scoreFalseCell._1 - 0.0
+        val diff = scoreTrueCell._1 - scoreFalseCell._1 - margin
         val objective = 1 - (1 / (1 + math.exp(-diff)))
         val factor = if(objective > 0.0) 1.0 else 0.0
         (new UniversalSchemaExample(posColVec, negColVec, maxOtherColVec, factor), objective)
@@ -346,3 +246,53 @@ BprTrainer {
   }
 }
 
+class TransEExample(val posVecE1: Weights, val posVecE2: Weights, val negVecE1: Weights, val negVecE2: Weights,
+                    val colVec: Weights, posGrad : Tensor, negGrad : Tensor, factor : Double, takeE1 : Boolean)
+  extends Example {
+
+  def accumulateValueAndGradient(value: DoubleAccumulator, gradient: WeightsMapAccumulator): Unit = {
+    gradient.accumulate(posVecE1, posGrad, factor)
+    gradient.accumulate(posVecE2, posGrad, -factor)
+    if (takeE1)
+      gradient.accumulate(negVecE1, negGrad, factor)
+    else
+      gradient.accumulate(negVecE2, negGrad, -factor)
+    gradient.accumulate(colVec, posGrad - negGrad, factor)
+  }
+}
+
+class TransETrainer(val regularizer: Double, val stepsize: Double, val margin : Double, val dim: Int,
+                    val matrix: CoocMatrix, val model: TransEModel, val random: Random) extends BprTrainer
+{
+  val optimizer = new AdaGradRDA(delta = 0.01 , rate = stepsize, l2 = regularizer)
+  val trainer = new LiteHogwildTrainer(weightsSet = model.parameters, optimizer = optimizer, maxIterations = Int.MaxValue)
+  optimizer.initializeWeights(model.parameters)
+
+  override def updateBprCells(rowIndexTrue: Int, rowIndexFalse: Int, colIndex: Int): Double = {
+    val (posE1, posE2) = this.model.rowToEnts(rowIndexTrue)
+
+    val takeE1 = random.nextBoolean()
+    val negE = random.nextInt(model.numEnts)
+
+    val (negE1, negE2) = if (takeE1) {
+      (negE, posE2)
+    } else {
+      (posE1, negE)
+    }
+
+    val posGrad = model.gradient(posE1, posE2, colIndex)
+    val negGrad = model.gradient(negE1, negE2, colIndex)
+
+    val obj = margin + posGrad.twoNorm - negGrad.twoNorm
+    val factor = 1.0 //if (obj > 0.0) 1.0 else 0.0
+
+    val posVecE1 = model.entityVectors(posE1)
+    val posVecE2 = model.entityVectors(posE2)
+    val negVecE1 = model.entityVectors(negE1)
+    val negVecE2 = model.entityVectors(negE2)
+    val colVec = model.colVectors(colIndex)
+
+    trainer.processExample(new TransEExample(posVecE1, posVecE2, negVecE1, negVecE2, colVec, posGrad, negGrad, factor, takeE1))
+    obj
+  }
+}
