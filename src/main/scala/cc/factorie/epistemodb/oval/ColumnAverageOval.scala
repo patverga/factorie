@@ -1,7 +1,8 @@
 package cc.factorie.epistemodb.oval
 
 import cc.factorie.app.nlp.embeddings._
-import cc.factorie.epistemodb.{BprTrainer, ColumnAverageModel, CoocMatrix, MatrixModel}
+import cc.factorie.epistemodb._
+import cc.factorie.epistemodb.tac.TrainTestTacData
 import cc.factorie.la.{Tensor, DenseTensor1, Tensor1, WeightsMapAccumulator}
 import cc.factorie.model.{Weights1, Parameters, Weights, WeightsMap}
 import cc.factorie.optimize._
@@ -193,4 +194,37 @@ class CBOWDiagonalGaussianLogExpectedLikelihoodEnergy(lambda: Double = 1.0) exte
   }
 }
 
+
+object TrainTestTacDataOval extends TrainTestTacData{
+  def main(args: Array[String]) : Unit = {
+    opts.parse(args)
+
+    val tReadStart = System.currentTimeMillis
+    //      val kb = EntityRelationKBMatrix.fromTsv(opts.tacData.value).prune(2,1)
+    val kb = StringStringKBMatrix.fromTsv(opts.tacData.value).prune(2,1)
+    val tRead = (System.currentTimeMillis - tReadStart)/1000.0
+    println(f"Reading from file and pruning took $tRead%.2f s")
+
+    println("Stats:")
+    println("Num Rows:" + kb.numRows())
+    println("Num Cols:" + kb.numCols())
+    println("Num cells:" + kb.nnz())
+
+    val random = new Random(0)
+    val numDev = 0
+    val numTest = 10000
+    val (trainKb, devKb, testKb) = kb.randomTestSplit(numDev, numTest, None, Some(testCols), random)
+    val rowToCols = trainKb.matrix.rowToColAndVal.map{ case (row, cols) => row -> cols.keys.toIndexedSeq}.toMap
+    val model = ColumnAverageOval.randomModel(rowToCols, kb.numCols(), opts.dim.value, random)
+    val trainer = new ColumnAverageOvalTrainer(opts.regularizer.value, opts.stepsize.value, opts.dim.value,
+      opts.margin.value, trainKb.matrix, model, random)
+
+    evaluate(model, trainer, trainKb.matrix, testKb.matrix)
+
+    //    if (!opts.patternsOut.value.isEmpty) {
+    //      kb.writeTopPatterns(testCols, model, 0.5, opts.patternsOut.value)
+    //    }
+
+  }
+}
 
