@@ -116,8 +116,8 @@ class ColumnAverageOvalTrainer(val regularizer: Double, val stepsize: Double, va
                            val variancel2 : Double = 0.5, val varianceMin : Double = 0.01, val varianceMax : Double = 100.0)
   extends BprTrainer {
 
-//  val varianceOptimizer = new AdaGrad(stepsize, delta) with WeightDecayStep with HypercubeConstraintStep with SynchronizedWeightsStep {
-  val varianceOptimizer = new AdaGrad(stepsize, delta) with HypercubeConstraintStep {
+  val varianceOptimizer = new AdaGrad(stepsize, delta) with WeightDecayStep with HypercubeConstraintStep with SynchronizedWeightsStep {
+//  val varianceOptimizer = new AdaGrad(stepsize, delta) with HypercubeConstraintStep {
     val min = varianceMin
     val max = varianceMax
     val lambda = variancel2
