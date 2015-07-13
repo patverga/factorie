@@ -154,13 +154,12 @@ class UniversalSchemaExample(posVec : Weights, negVec : Weights, targetVec : Wei
   }
 }
 
-class AdaGradUniversalSchemaTrainer(val regularizer: Double, val stepsize: Double, val dim: Int, margin : Double,
+class AdaGradUniversalSchemaTrainer(val regularizer: Double, val stepsize: Double, val dim: Int, val margin : Double,
                                     val matrix: CoocMatrix, val model: UniversalSchemaAdaGradModel, val random: Random) extends
 BprTrainer {
 
   val optimizer = new AdaGradRDA(delta = 0.01 , rate = stepsize, l2 = regularizer)
   val trainer = new LiteHogwildTrainer(weightsSet = model.parameters, optimizer = optimizer, maxIterations = Int.MaxValue)
-
   optimizer.initializeWeights(model.parameters)
 
 
@@ -204,7 +203,6 @@ BprTrainer {
 
   val optimizer = new AdaGradRDA(delta = 0.01 , rate = stepsize, l2 = regularizer)
   val trainer = new LiteHogwildTrainer(weightsSet = model.parameters, optimizer = optimizer, maxIterations = Int.MaxValue)
-
   optimizer.initializeWeights(model.parameters)
 
 
@@ -241,21 +239,6 @@ BprTrainer {
   }
 }
 
-class TransEExample(val posVecE1: Weights, val posVecE2: Weights, val negVecE1: Weights, val negVecE2: Weights,
-                    val colVec: Weights, posGrad : Tensor, negGrad : Tensor, factor : Double, takeE1 : Boolean)
-  extends Example {
-
-  def accumulateValueAndGradient(value: DoubleAccumulator, gradient: WeightsMapAccumulator): Unit = {
-    gradient.accumulate(posVecE1, posGrad, factor)
-    gradient.accumulate(posVecE2, posGrad, -factor)
-    if (takeE1)
-      gradient.accumulate(negVecE1, negGrad, factor)
-    else
-      gradient.accumulate(negVecE2, negGrad, -factor)
-    gradient.accumulate(colVec, posGrad - negGrad, factor)
-  }
-}
-
 class TransETrainer(val regularizer: Double, val stepsize: Double, val dim: Int, val margin : Double,
                     val matrix: CoocMatrix, val model: TransEModel, val random: Random) extends BprTrainer
 {
@@ -289,5 +272,21 @@ class TransETrainer(val regularizer: Double, val stepsize: Double, val dim: Int,
 
     trainer.processExample(new TransEExample(posVecE1, posVecE2, negVecE1, negVecE2, colVec, posGrad, negGrad, factor, takeE1))
     obj
+
+  }
+
+  class TransEExample(val posVecE1: Weights, val posVecE2: Weights, val negVecE1: Weights, val negVecE2: Weights,
+                      val colVec: Weights, posGrad : Tensor, negGrad : Tensor, factor : Double, takeE1 : Boolean)
+    extends Example {
+
+    def accumulateValueAndGradient(value: DoubleAccumulator, gradient: WeightsMapAccumulator): Unit = {
+      gradient.accumulate(posVecE1, posGrad, factor)
+      gradient.accumulate(posVecE2, posGrad, -factor)
+      if (takeE1)
+        gradient.accumulate(negVecE1, negGrad, factor)
+      else
+        gradient.accumulate(negVecE2, negGrad, -factor)
+      gradient.accumulate(colVec, posGrad - negGrad, factor)
+    }
   }
 }

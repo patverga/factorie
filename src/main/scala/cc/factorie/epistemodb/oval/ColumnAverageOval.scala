@@ -49,7 +49,7 @@ class ColumnAverageOval(val rowToCols : Map[Int, Seq[Int]], dim : Int, val numCo
         case "max" =>
           values.max
         case "cbow" =>
-          values.sum / values.size
+          values.sum / math.max(1.0, values.size)
         case _ => throw new NotImplementedError(s"$scoreType is not a valid value for neighborhood")
       }
   }
@@ -110,15 +110,13 @@ class ColumnAverageOvalExample(energy: EnergyFunction2[DiagonalEllipticLike, Dia
 
 }
 
-class ColumnAverageOvalTrainer(val maxNorm: Double, val stepsize: Double, val dim: Int,
+class ColumnAverageOvalTrainer(val regularizer: Double, val stepsize: Double, val dim: Int, margin: Double,
                            val matrix: CoocMatrix, val model: ColumnAverageOval, val random: Random, val delta : Double = 0.01,
                            val variancel2 : Double = 0.5, val varianceMin : Double = 0.01, val varianceMax : Double = 100.0)
   extends BprTrainer {
 
-  val regularizer = 0.01
-  val margin = 1.0
-
-  val varianceOptimizer = new AdaGrad(stepsize, delta) with WeightDecayStep with HypercubeConstraintStep with SynchronizedWeightsStep {
+//  val varianceOptimizer = new AdaGrad(stepsize, delta) with WeightDecayStep with HypercubeConstraintStep with SynchronizedWeightsStep {
+  val varianceOptimizer = new AdaGrad(stepsize, delta) with HypercubeConstraintStep {
     val min = varianceMin
     val max = varianceMax
     val lambda = variancel2
@@ -139,8 +137,8 @@ class ColumnAverageOvalTrainer(val maxNorm: Double, val stepsize: Double, val di
     val sharedRowVecs = for (col <- model.rowToCols(rowIndexTrue) if col != colIndex)
       yield model.colVectors(col)
 
-    var negColIndex = -1
-    do negColIndex = random.nextInt(model.numCols) while (model.rowToCols(rowIndexTrue).contains(negColIndex))
+    var negColIndex = random.nextInt(model.numCols)
+    while (model.rowToCols(rowIndexTrue).contains(negColIndex)) negColIndex = random.nextInt(model.numCols)
     val negColVec = model.colVectors(negColIndex)
 
     val scoreTrueCell = model.score(colVec, sharedRowVecs)
@@ -181,12 +179,16 @@ class CBOWDiagonalGaussianLogExpectedLikelihoodEnergy(lambda: Double = 1.0) exte
       val diff = m2(i) - m1(i)
       val diffSq = diff * diff
       val ratio = diff / csum
-      value += -0.5 * (diffSq / csum + lambda * math.log(csum))
+      val delta = -0.5 * (diffSq / csum + lambda * math.log(csum))
+      value += delta
+      if (value.isNaN)
+        println(value)
       m1grad(i) = ratio
       m2grad(i) = -ratio
       cgrad(i) = 0.5 * (diffSq - lambda * csum) / (csum * csum)
       i += 1
     }
+
     (value, m1grad, cgrad, m2grad, cgrad)
   }
 }

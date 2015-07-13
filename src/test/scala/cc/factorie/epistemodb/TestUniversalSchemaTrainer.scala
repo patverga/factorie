@@ -99,8 +99,8 @@ class TestUniversalSchemaTrainer extends JUnitSuite  with util.FastLogging {
       val model = UniversalSchemaModel.randomModel(numRows, numCols, dim, random)
       val trainer = new NormConstrainedBprUniversalSchemaTrainer(maxNorm, stepsize, dim, m, model, random)
       val objectiveValues = trainer.train(iters)
-      assertTrue(objectiveValues(0) < objectiveValues(9))
-      assertTrue(objectiveValues(0) < objectiveValues(4))
+      assertTrue(objectiveValues.head < objectiveValues(9))
+      assertTrue(objectiveValues.head < objectiveValues(4))
       assertTrue(objectiveValues(4) < objectiveValues(9))
     }
 

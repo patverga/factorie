@@ -17,12 +17,12 @@ class TrainTestTacDataOptions extends cc.factorie.util.DefaultCmdOptions {
   val margin =  new CmdOption("margin", 1.0, "DOUBLE", "size of margin to use for training")
   val useMaxNorm =  new CmdOption("use-max-norm", true, "BOOLEAN", "whether to use maximum l2-norm for vectors")
   val regularizer = new CmdOption("regularizer", 0.01, "DOUBLE", "regularizer")
-
   val patternsOut = new CmdOption("patterns-out", "", "FILE", "Top-scored columns, for test columns.")
 }
 
 
-class TrainTestTacData {
+class
+TrainTestTacData {
 
   val opts = new TrainTestTacDataOptions
 
@@ -159,15 +159,10 @@ object TrainTestTacDataAdaGrad  extends TrainTestTacData{
 
     val model = UniversalSchemaAdaGradModel.randomModel(kb.numRows(), kb.numCols(), opts.dim.value, random)
 
-    val trainer = new AdaGradUniversalSchemaTrainer(opts.regularizer.value, opts.stepsize.value, opts.dim.value, opts.margin.value,
-        trainKb.matrix, model, random)
+    val trainer = new AdaGradUniversalSchemaTrainer(opts.regularizer.value, opts.stepsize.value, opts.dim.value,
+      opts.margin.value, trainKb.matrix, model, random)
 
     evaluate(model, trainer, trainKb.matrix, testKb.matrix)
-//
-//    if (!opts.patternsOut.value.isEmpty) {
-//      kb.writeTopPatterns(testCols, model, 0.5, opts.patternsOut.value)
-//    }
-
   }
 }
 
