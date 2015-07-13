@@ -30,12 +30,6 @@ class ColumnAverageOval(val rowToCols : Map[Int, Seq[Int]], dim : Int, val numCo
     case SphericalGaussian => ???
     case SphericalCauchy => ???
   }
-
-  def similarity(vec1: Tensor, vec2: Tensor): Double = vec1.cosineSimilarity(vec2)
-  // cosine similarity normalized to lie between 0 and one
-  def similarity01(vec1: Tensor, vec2: Tensor): Double =
-    (1.0 + vec1.cosineSimilarity(vec2)) / 2.0
-
   def similarity01(row: Int, col: Int): Double = {
     score(colVectors(col), rowToCols(row).map(colVectors(_)))
   }
@@ -63,9 +57,6 @@ class ColumnAverageOval(val rowToCols : Map[Int, Seq[Int]], dim : Int, val numCo
     else
       values.zipWithIndex.maxBy(_._1)
   }
-
-  def cosSimilarity01(vec1: Tensor, vec2: Tensor): Double = (1.0 + vec1.cosineSimilarity(vec2)) / 2.0
-
 }
 
 object ColumnAverageOval {
@@ -116,8 +107,8 @@ class ColumnAverageOvalTrainer(val regularizer: Double, val stepsize: Double, va
                            val variancel2 : Double = 0.5, val varianceMin : Double = 0.01, val varianceMax : Double = 100.0)
   extends BprTrainer {
 
-  val varianceOptimizer = new AdaGrad(stepsize, delta) with WeightDecayStep with HypercubeConstraintStep with SynchronizedWeightsStep {
-//  val varianceOptimizer = new AdaGrad(stepsize, delta) with HypercubeConstraintStep {
+//  val varianceOptimizer = new AdaGrad(stepsize, delta) with WeightDecayStep with HypercubeConstraintStep with SynchronizedWeightsStep {
+  val varianceOptimizer = new AdaGrad(stepsize, delta) with HypercubeConstraintStep {
     val min = varianceMin
     val max = varianceMax
     val lambda = variancel2
@@ -128,7 +119,7 @@ class ColumnAverageOvalTrainer(val regularizer: Double, val stepsize: Double, va
   val varianceSet = model.colVectors.map(_.variance: Weights).toSet
   val meanSet = model.colVectors.map(_.mean: Weights).toSet
   val optimizer = new MultiplexOptimizer(Seq(varianceOptimizer, embeddingOptimizer), w => if (meanSet(w)) embeddingOptimizer else varianceOptimizer)
-  val trainer = new LiteHogwildTrainer(weightsSet = model.parameters, optimizer = optimizer, maxIterations = Int.MaxValue)
+  val trainer = new LiteHogwildTrainer(weightsSet = model.parameters, optimizer = optimizer, maxIterations = Int.MaxValue, nThreads = 1)
   optimizer.initializeWeights(model.parameters)
 
 
