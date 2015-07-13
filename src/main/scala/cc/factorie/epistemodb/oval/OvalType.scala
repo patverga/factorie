@@ -1,7 +1,8 @@
 package cc.factorie.epistemodb.oval
 
 import cc.factorie.la.DenseTensor1
-import cc.factorie.model.{Parameters, Weights1, WeightsMap}
+import cc.factorie.model.{WeightsSet, Parameters, Weights1, WeightsMap}
+import cc.factorie.optimize.{GradientStep, GradientOptimizer}
 
 import scala.util.Random
 
@@ -50,3 +51,33 @@ trait SphericalEllipticLike {
   def mean: Weights1
 }
 
+
+
+class NullOptimizer extends GradientOptimizer {
+  override def step(weights: WeightsSet, gradient: WeightsMap, value: Double): Unit = { }
+  override def initializeWeights(weights: WeightsSet): Unit = { }
+  override def reset(): Unit = { }
+  override def finalizeWeights(weights: WeightsSet): Unit = { }
+  override def isConverged: Boolean = true
+}
+
+trait WeightDecayStep extends GradientStep {
+  def lambda: Double
+  abstract override def doGradStep(weights: WeightsSet, gradient: WeightsMap, value: Double): Unit = {
+    for (k <- gradient.keys) gradient(k) +=(weights(k), -lambda)
+    super.doGradStep(weights, gradient, value)
+  }
+}
+
+trait SynchronizedWeightsStep extends GradientStep {
+  abstract override def doGradStep(weights: WeightsSet, gradient: WeightsMap, value: Double): Unit = {
+    for ((k, v) <- gradient.toSeq) k.synchronized {
+      val gradForWeight = new WeightsMap(_.newBlankTensor)
+      gradForWeight(k) = v
+      super.doGradStep(weights, gradForWeight, value)
+    }
+  }
+  override def initializeWeights(weights: WeightsSet): Unit = this.synchronized {super.initializeWeights(weights)}
+  override def reset(): Unit = this.synchronized {super.reset()}
+  override def finalizeWeights(weights: WeightsSet): Unit = this.synchronized {super.finalizeWeights(weights)}
+}
