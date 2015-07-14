@@ -21,7 +21,7 @@ class UniversalOval( dim: Int, val numRows : Int, val numCols: Int, rand: Random
   extends MatrixModel with Parameters
 {
   implicit val r = rand
-  val rowVectors = Array.fill(numCols)(new DiagonalElliptic(this, dim))
+  val rowVectors = Array.fill(numRows)(new DiagonalElliptic(this, dim))
   val colVectors = Array.fill(numCols)(new DiagonalElliptic(this, dim))
 
   val energy = ovalType match {
