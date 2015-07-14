@@ -24,7 +24,7 @@ class ColumnAverageOval(val rowToCols : Map[Int, Seq[Int]], dim : Int, val numCo
   val colVectors = Array.fill(numCols)(new DiagonalElliptic(this, dim))
 
   val energy = ovalType match {
-    case DiagonalGaussian => new CBOWDiagonalGaussianLogExpectedLikelihoodEnergy
+    case DiagonalGaussian => new DiagonalGaussianLogExpectedLikelihoodEnergy
     case DiagonalCauchy => ??? //new DiagonalCauchyLogExpectedLikelihoodEnergy
     case DiagonalNull => ??? //new DiagonalNullLogExpectedLikelihoodEnergy
     case SphericalGaussian => ???
@@ -125,7 +125,7 @@ class ColumnAverageOvalTrainer(val regularizer: Double, val stepsize: Double, va
 
   override def updateBprCells(rowIndexTrue: Int, rowIndexFalse: Int, colIndex: Int): Double =
   {
-    val colVec = model.colVectors(colIndex)
+    val posColVec = model.colVectors(colIndex)
     val sharedRowVecs = for (col <- model.rowToCols(rowIndexTrue) if col != colIndex)
       yield model.colVectors(col)
 
@@ -133,65 +133,23 @@ class ColumnAverageOvalTrainer(val regularizer: Double, val stepsize: Double, va
     while (model.rowToCols(rowIndexTrue).contains(negColIndex)) negColIndex = random.nextInt(model.numCols)
     val negColVec = model.colVectors(negColIndex)
 
-    val scoreTrueCell = model.score(colVec, sharedRowVecs)
+    val scoreTrueCell = model.score(posColVec, sharedRowVecs)
     val scoreFalseCell = model.score(negColVec, sharedRowVecs)
-    val diff: Double = scoreTrueCell - scoreFalseCell - margin
+    val diff = scoreTrueCell - scoreFalseCell - margin
     val objective = 1 - (1 / (1 + math.exp(-diff)))
     val factor = if(objective > 0.0) 1.0 else 0.0
 
-    trainer.processExamples(Seq(new ColumnAverageOvalExample(model.energy, colVec, negColVec, sharedRowVecs, scoreType = model.scoreType)))
+    trainer.processExample(new ColumnAverageOvalExample(model.energy, posColVec, negColVec, sharedRowVecs, scoreType = model.scoreType))
 
     objective
   }
 }
-
-// Need to try non-log version for mixture model (tho this is a variational lower bound)
-// lambda gives the "regularization" coefficient -- 1.0 corresponds to proper normalization
-class CBOWDiagonalGaussianLogExpectedLikelihoodEnergy(lambda: Double = 1.0) extends EnergyFunction2[DiagonalEllipticLike, DiagonalEllipticLike] {
-  override def valueAndGradient(v1: DiagonalEllipticLike, v2: DiagonalEllipticLike): (Double, EnergyGradient2) = {
-    val (value, m1grad, c1grad, m2grad, c2grad) = getValueAndGradient(v1.mean.value, v1.variance.value, v2.mean.value, v2.variance.value)
-    val v1grad = new WeightsMap(_.newBlankTensor)
-    val v2grad = new WeightsMap(_.newBlankTensor)
-    v1grad(v1.mean) = m1grad
-    v1grad(v1.variance) = c1grad
-    v2grad(v2.mean) = m2grad
-    v2grad(v2.variance) = c2grad
-    (value, EnergyGradient2(v1grad, v2grad))
-  }
-
-  def getValueAndGradient(m1: Tensor1, c1: Tensor1, m2: Tensor1, c2: Tensor1): (Double, Tensor1, Tensor1, Tensor1, Tensor1) = {
-    val dim = m1.dim1
-    val m1grad = new DenseTensor1(dim)
-    val m2grad = new DenseTensor1(dim)
-    val cgrad = new DenseTensor1(dim)
-    var value = 0.0
-    var i = 0
-    while (i < dim) {
-      val csum = c1(i) + c2(i)
-      val diff = m2(i) - m1(i)
-      val diffSq = diff * diff
-      val ratio = diff / csum
-      val delta = -0.5 * (diffSq / csum + lambda * math.log(csum))
-      value += delta
-      if (value.isNaN)
-        println(value)
-      m1grad(i) = ratio
-      m2grad(i) = -ratio
-      cgrad(i) = 0.5 * (diffSq - lambda * csum) / (csum * csum)
-      i += 1
-    }
-
-    (value, m1grad, cgrad, m2grad, cgrad)
-  }
-}
-
 
 object TrainTestTacDataOval extends TrainTestTacData{
   def main(args: Array[String]) : Unit = {
     opts.parse(args)
 
     val tReadStart = System.currentTimeMillis
-    //      val kb = EntityRelationKBMatrix.fromTsv(opts.tacData.value).prune(2,1)
     val kb = StringStringKBMatrix.fromTsv(opts.tacData.value).prune(2,1)
     val tRead = (System.currentTimeMillis - tReadStart)/1000.0
     println(f"Reading from file and pruning took $tRead%.2f s")

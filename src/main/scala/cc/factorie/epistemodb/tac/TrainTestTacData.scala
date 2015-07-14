@@ -171,7 +171,6 @@ object TrainTestTacDataColAverage extends TrainTestTacData{
     opts.parse(args)
 
     val tReadStart = System.currentTimeMillis
-    //      val kb = EntityRelationKBMatrix.fromTsv(opts.tacData.value).prune(2,1)
     val kb = StringStringKBMatrix.fromTsv(opts.tacData.value).prune(2,1)
     val tRead = (System.currentTimeMillis - tReadStart)/1000.0
     println(f"Reading from file and pruning took $tRead%.2f s")
@@ -187,7 +186,8 @@ object TrainTestTacDataColAverage extends TrainTestTacData{
     val (trainKb, devKb, testKb) = kb.randomTestSplit(numDev, numTest, None, Some(testCols), random)
     val rowToCols = trainKb.matrix.rowToColAndVal.map{ case (row, cols) => row -> cols.keys.toIndexedSeq}.toMap
     val model = ColumnAverageModel.randomModel(rowToCols, kb.numCols(), opts.dim.value, random)
-    val trainer = new ColumnAverageTrainer(opts.regularizer.value, opts.stepsize.value, opts.dim.value, opts.margin.value, trainKb.matrix, model, random)
+    val trainer = new ColumnAverageTrainer(opts.regularizer.value, opts.stepsize.value, opts.dim.value,
+      opts.margin.value, trainKb.matrix, model, random)
 
     evaluate(model, trainer, trainKb.matrix, testKb.matrix)
 

@@ -286,11 +286,6 @@ class ColumnAverageModel(val rowToCols : Map[Int, Seq[Int]], __colVectors: Index
 
   val colVectors : IndexedSeq[Weights] = __colVectors.map(this.Weights(_))
 
-  def similarity(vec1: Tensor, vec2: Tensor): Double = vec1.cosineSimilarity(vec2)
-  // cosine similarity normalized to lie between 0 and one
-  def similarity01(vec1: Tensor, vec2: Tensor): Double =
-    (1.0 + vec1.cosineSimilarity(vec2)) / 2.0
-
   def similarity01(row: Int, col: Int): Double = {
     score(colVectors(col).value, rowToCols(row).map(colVectors(_).value))
   }
@@ -316,8 +311,6 @@ class ColumnAverageModel(val rowToCols : Map[Int, Seq[Int]], __colVectors: Index
     else
       values.zipWithIndex.maxBy(_._1)
   }
-
-  def cosSimilarity01(vec1: Tensor, vec2: Tensor): Double = (1.0 + vec1.cosineSimilarity(vec2)) / 2.0
 
 }
 object ColumnAverageModel{
