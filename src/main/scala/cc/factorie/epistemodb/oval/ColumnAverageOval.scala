@@ -119,7 +119,7 @@ class ColumnAverageOvalTrainer(val regularizer: Double, val stepsize: Double, va
   val varianceSet = model.colVectors.map(_.variance: Weights).toSet
   val meanSet = model.colVectors.map(_.mean: Weights).toSet
   val optimizer = new MultiplexOptimizer(Seq(varianceOptimizer, embeddingOptimizer), w => if (meanSet(w)) embeddingOptimizer else varianceOptimizer)
-  val trainer = new LiteHogwildTrainer(weightsSet = model.parameters, optimizer = optimizer, maxIterations = Int.MaxValue, nThreads = 1)
+  val trainer = new LiteHogwildTrainer(weightsSet = model.parameters, optimizer = optimizer, maxIterations = Int.MaxValue)
   optimizer.initializeWeights(model.parameters)
 
 

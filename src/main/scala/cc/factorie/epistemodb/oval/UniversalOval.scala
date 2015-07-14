@@ -17,7 +17,7 @@ import scala.util.Random
 /**
  * Created by pat on 7/14/15.
  */
-class UniversalOval( dim: Int, val numRows : Int, val numCols: Int, rand: Random, val ovalType: OvalType = DiagonalGaussian)
+class UniversalOval(val numRows : Int, val numCols: Int, dim: Int, rand: Random, val ovalType: OvalType = DiagonalGaussian)
   extends MatrixModel with Parameters
 {
   implicit val r = rand
@@ -43,7 +43,7 @@ class UniversalOval( dim: Int, val numRows : Int, val numCols: Int, rand: Random
 
 object UniversalOval {
   def randomModel(numRows :Int, numCols: Int, dim: Int, r: Random = new Random(0)): UniversalOval = {
-    new UniversalOval(dim, numRows, numCols, r)
+    new UniversalOval(numRows, numCols, dim, r)
   }
 }
 
@@ -88,7 +88,7 @@ class UniversalOvalTrainer(val regularizer: Double, val stepsize: Double, val di
   val varianceSet = (model.colVectors ++ model.rowVectors).map(_.variance: Weights).toSet
   val meanSet = (model.colVectors ++ model.rowVectors).map(_.mean: Weights).toSet
   val optimizer = new MultiplexOptimizer(Seq(varianceOptimizer, embeddingOptimizer), w => if (meanSet(w)) embeddingOptimizer else varianceOptimizer)
-  val trainer = new LiteHogwildTrainer(weightsSet = model.parameters, optimizer = optimizer, maxIterations = Int.MaxValue, nThreads = 1)
+  val trainer = new LiteHogwildTrainer(weightsSet = model.parameters, optimizer = optimizer, maxIterations = Int.MaxValue)
   optimizer.initializeWeights(model.parameters)
 
 
