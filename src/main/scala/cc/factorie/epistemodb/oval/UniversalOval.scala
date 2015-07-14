@@ -103,7 +103,7 @@ class UniversalOvalTrainer(val regularizer: Double, val stepsize: Double, val di
 
     val diff = scoreTrueCell - scoreFalseCell - margin
     val objective = 1 - (1 / (1 + math.exp(-diff)))
-    val factor = if(objective > 0.0) 1.0 else 0.0
+//    val factor = if(objective > 0.0) 1.0 else 0.0
 
     trainer.processExample(new UniversalOvalExample(model.energy, posRowVec, negRowVec, colVec))
 
@@ -129,7 +129,6 @@ object TrainTestTacDataUniversalOval extends TrainTestTacData{
     val numDev = 0
     val numTest = 10000
     val (trainKb, devKb, testKb) = kb.randomTestSplit(numDev, numTest, None, Some(testCols), random)
-    val rowToCols = trainKb.matrix.rowToColAndVal.map{ case (row, cols) => row -> cols.keys.toIndexedSeq}.toMap
     val model = UniversalOval.randomModel(kb.numRows(), kb.numCols(), opts.dim.value, random)
     val trainer = new UniversalOvalTrainer(opts.regularizer.value, opts.stepsize.value, opts.dim.value,
       opts.margin.value, trainKb.matrix, model, random)

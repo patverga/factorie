@@ -1,16 +1,15 @@
 package cc.factorie.epistemodb.oval
 
+import cc.factorie._
 import cc.factorie.app.nlp.embeddings._
 import cc.factorie.epistemodb._
 import cc.factorie.epistemodb.tac.TrainTestTacData
-import cc.factorie.la.{Tensor, DenseTensor1, Tensor1, WeightsMapAccumulator}
-import cc.factorie.model.{Weights1, Parameters, Weights, WeightsMap}
+import cc.factorie.la.WeightsMapAccumulator
+import cc.factorie.model.{Parameters, Weights, WeightsMap}
 import cc.factorie.optimize._
 import cc.factorie.util.DoubleAccumulator
-import cc.factorie._
 
 import scala.collection.Seq
-import scala.collection.mutable.ArrayBuffer
 import scala.util.Random
 
 /**
@@ -99,7 +98,6 @@ class ColumnAverageOvalExample(energy: EnergyFunction2[DiagonalEllipticLike, Dia
       }
     }
   }
-
 }
 
 class ColumnAverageOvalTrainer(val regularizer: Double, val stepsize: Double, val dim: Int, margin: Double,
