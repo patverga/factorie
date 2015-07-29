@@ -1,6 +1,6 @@
 package cc.factorie.epistemodb
 
-import java.io.PrintWriter
+import java.io.{File, PrintWriter}
 
 import com.mongodb.DB
 import cc.factorie.la.{Tensor, Tensor1, DenseTensor1}
@@ -33,8 +33,9 @@ abstract class MatrixModel {
       case Some(cols) => cols
       case None => testMatrix.nonZeroCols()
     }
-    val writer = if (export) Some(new PrintWriter("test.mtx")) else None
+    if (export) new File("test.mtx").mkdir()
     val simsAndLabels = columns.par.map(col => {
+      val writer = if (export) Some(new PrintWriter(s"test.mtx/$col-test.mtx")) else None
       val scores = {for (row <- (0 until testMatrix.numRows());
                          if trainDevMatrix.get(row, col) == 0) yield {
         val sim = similarity01(row, col)
@@ -42,9 +43,9 @@ abstract class MatrixModel {
         if (export) writer.get.write(s"$row\t$col\t$isTrueTest\n")
         (sim, isTrueTest)
       }}.toSeq
+      if (export) writer.get.close()
       (col, scores)
     }).toMap.seq
-    if (export) writer.get.close()
     simsAndLabels
   }
 
