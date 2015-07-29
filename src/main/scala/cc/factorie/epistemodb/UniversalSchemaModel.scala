@@ -35,7 +35,7 @@ abstract class MatrixModel {
     }
     if (export) new File("test.mtx").mkdir()
     val simsAndLabels = columns.par.map(col => {
-      val writer = if (export) Some(new PrintWriter(s"test.mtx/$col-test.mtx")) else None
+      val writer = if (export) Some(new PrintWriter(s"test-mtx/$col-test.mtx")) else None
       val scores = {for (row <- (0 until testMatrix.numRows());
                          if trainDevMatrix.get(row, col) == 0) yield {
         val sim = similarity01(row, col)
