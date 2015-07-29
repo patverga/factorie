@@ -15,7 +15,7 @@ import scala.util.Random
 /**
  * Created by pat on 7/2/15.
  */
-class ColumnAverageOval(val rowToCols : Map[Int, Seq[Int]], dim : Int, val numCols : Int, rand: Random,
+class ColumnAverageOval(val rowToCols : Map[Int, Seq[Int]], val numCols : Int, dim : Int, rand: Random,
                         val scoreType : String = "cbow", val ovalType : OvalType = DiagonalGaussian)
   extends MatrixModel with Parameters {
 
@@ -60,7 +60,7 @@ class ColumnAverageOval(val rowToCols : Map[Int, Seq[Int]], dim : Int, val numCo
 
 object ColumnAverageOval {
   def randomModel(rowToCols: Map[Int, Seq[Int]], numCols: Int, dim: Int, r: Random = new Random(0)): ColumnAverageOval = {
-    new ColumnAverageOval(rowToCols, dim, numCols, r)
+    new ColumnAverageOval(rowToCols, numCols, dim, r)
   }
 }
 

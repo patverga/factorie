@@ -1,5 +1,7 @@
 package cc.factorie.epistemodb
 
+import java.io.PrintWriter
+
 import com.mongodb.DB
 import cc.factorie.la.{Tensor, Tensor1, DenseTensor1}
 import cc.factorie.optimize.OptimizableObjectives.UnivariateLinkFunction
@@ -31,16 +33,19 @@ abstract class MatrixModel {
       case Some(cols) => cols
       case None => testMatrix.nonZeroCols()
     }
-
-    columns.par.map(col => {
+    val writer = new PrintWriter("test.mtx")
+    val simsAndLabels = columns.par.map(col => {
       val scores = {for (row <- (0 until testMatrix.numRows());
                          if trainDevMatrix.get(row, col) == 0) yield {
         val sim = similarity01(row, col)
         val isTrueTest = testMatrix.get(row, col) != 0
+        writer.write(s"$row\t$col\t$isTrueTest\n")
         (sim, isTrueTest)
       }}.toSeq
       (col, scores)
     }).toMap.seq
+    writer.close()
+    simsAndLabels
   }
 
 

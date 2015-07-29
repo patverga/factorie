@@ -1,5 +1,7 @@
 package cc.factorie.epistemodb.tac
 
+import java.io.PrintWriter
+
 import com.google.common.collect.HashBiMap
 
 import scala.util.Random
@@ -114,7 +116,9 @@ object TrainTestTacData  extends TrainTestTacData{
       val numDev = 0
       val numTest = 10000
       val (trainKb, devKb, testKb) = kb.randomTestSplit(numDev, numTest, None, Some(testCols), random)
-
+      val writer = new PrintWriter("train.mtx")
+      trainKb.matrix.getNnzCells().foreach(t => writer.println(s"${t._1}\t${t._2}"))
+      writer.close()
       val model = UniversalSchemaModel.randomModel(kb.numRows(), kb.numCols(), opts.dim.value, random)
 
       val trainer = if(opts.useMaxNorm.value) {
