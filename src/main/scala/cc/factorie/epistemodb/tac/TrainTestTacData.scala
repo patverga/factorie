@@ -20,6 +20,7 @@ class TrainTestTacDataOptions extends cc.factorie.util.DefaultCmdOptions {
   val useMaxNorm =  new CmdOption("use-max-norm", true, "BOOLEAN", "whether to use maximum l2-norm for vectors")
   val regularizer = new CmdOption("regularizer", 0.01, "DOUBLE", "regularizer")
   val patternsOut = new CmdOption("patterns-out", "", "FILE", "Top-scored columns, for test columns.")
+  val exportData = new CmdOption("export-data", false, "BOOLEAN", "Export the training and test data to file. NOTE: only works with TrainTestTacData")
 }
 
 
@@ -70,8 +71,8 @@ TrainTestTacData {
     "per:statesorprovinces_of_residence",
     "per:title")
 
-  def evaluate(model : MatrixModel, trainer : BprTrainer, trainKb : CoocMatrix, testKb: CoocMatrix) : Unit = {
-    var result = model.similaritiesAndLabels(trainKb, testKb)
+  def evaluate(model : MatrixModel, trainer : BprTrainer, trainKb : CoocMatrix, testKb: CoocMatrix, export : Boolean = false) : Unit = {
+    var result = model.similaritiesAndLabels(trainKb, testKb, export = export)
     println("Initial MAP: " + Evaluator.meanAveragePrecision(result))
 
     trainer.train(10)
@@ -95,6 +96,21 @@ TrainTestTacData {
     println("MAP after 200 iterations: " + Evaluator.meanAveragePrecision(result))
   }
 
+  // export the training matrix to file
+  def exportData(trainKb : StringStringKBMatrix): Unit ={
+    // non zero row / col cells as ints
+    var writer = new PrintWriter("train.mtx")
+    trainKb.matrix.getNnzCells().foreach(t => writer.println(s"${t._1}\t${t._2}"))
+    writer.close()
+    // row -> string map
+    writer = new PrintWriter("row-map.tsv")
+    trainKb.__rowMap.keyIterator.foreach(key => writer.println(s"${trainKb.__rowMap.keyToIndex(key)}\t$key"))
+    writer.close()
+    // col -> string map
+    writer = new PrintWriter("col-map.tsv")
+    trainKb.__colMap.keyIterator.foreach(key => writer.println(s"${trainKb.__colMap.keyToIndex(key)}\t$key"))
+    writer.close()
+  }
 }
 
 object TrainTestTacData  extends TrainTestTacData{
@@ -116,11 +132,10 @@ object TrainTestTacData  extends TrainTestTacData{
       val numDev = 0
       val numTest = 10000
       val (trainKb, devKb, testKb) = kb.randomTestSplit(numDev, numTest, None, Some(testCols), random)
-      val writer = new PrintWriter("train.mtx")
-      trainKb.matrix.getNnzCells().foreach(t => writer.println(s"${t._1}\t${t._2}"))
-      writer.close()
-      val model = UniversalSchemaModel.randomModel(kb.numRows(), kb.numCols(), opts.dim.value, random)
 
+      if (opts.exportData.value) exportData(trainKb)
+
+      val model = UniversalSchemaModel.randomModel(kb.numRows(), kb.numCols(), opts.dim.value, random)
       val trainer = if(opts.useMaxNorm.value) {
         println("use norm constraint")
         new NormConstrainedBprUniversalSchemaTrainer(opts.maxNorm.value, opts.stepsize.value, opts.dim.value,
@@ -131,7 +146,7 @@ object TrainTestTacData  extends TrainTestTacData{
           trainKb.matrix, model, random)
       }
 
-      evaluate(model, trainer, trainKb.matrix, testKb.matrix)
+      evaluate(model, trainer, trainKb.matrix, testKb.matrix, opts.exportData.value)
 
       if (!opts.patternsOut.value.isEmpty) {
         kb.writeTopPatterns(testCols, model, 0.5, opts.patternsOut.value)

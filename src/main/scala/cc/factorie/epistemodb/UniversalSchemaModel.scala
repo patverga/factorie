@@ -27,24 +27,24 @@ abstract class MatrixModel {
    * The test scores can be passed to the Evaluator object, to compute evaluation measures such as mean average
    * precision and f1 score.
    */
-  def similaritiesAndLabels(trainDevMatrix: CoocMatrix, testMatrix: CoocMatrix, testCols: Option[Set[Int]] = None):
+  def similaritiesAndLabels(trainDevMatrix: CoocMatrix, testMatrix: CoocMatrix, testCols: Option[Set[Int]] = None, export : Boolean = false):
   Map[Int, Seq[(Double, Boolean)]] = {
     val columns = testCols match {
       case Some(cols) => cols
       case None => testMatrix.nonZeroCols()
     }
-    val writer = new PrintWriter("test.mtx")
+    val writer = if (export) Some(new PrintWriter("test.mtx")) else None
     val simsAndLabels = columns.par.map(col => {
       val scores = {for (row <- (0 until testMatrix.numRows());
                          if trainDevMatrix.get(row, col) == 0) yield {
         val sim = similarity01(row, col)
         val isTrueTest = testMatrix.get(row, col) != 0
-        writer.write(s"$row\t$col\t$isTrueTest\n")
+        if (export) writer.get.write(s"$row\t$col\t$isTrueTest\n")
         (sim, isTrueTest)
       }}.toSeq
       (col, scores)
     }).toMap.seq
-    writer.close()
+    if (export) writer.get.close()
     simsAndLabels
   }
 
