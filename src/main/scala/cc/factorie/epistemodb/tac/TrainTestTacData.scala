@@ -2,8 +2,10 @@ package cc.factorie.epistemodb.tac
 
 import java.io.{File, PrintWriter}
 
+import cc.factorie.la.{DenseTensor1, DenseTensor}
 import com.google.common.collect.HashBiMap
 
+import scala.io.Source
 import scala.util.Random
 import cc.factorie.epistemodb._
 
@@ -20,6 +22,8 @@ class TrainTestTacDataOptions extends cc.factorie.util.DefaultCmdOptions {
   val useMaxNorm =  new CmdOption("use-max-norm", true, "BOOLEAN", "whether to use maximum l2-norm for vectors")
   val regularizer = new CmdOption("regularizer", 0.01, "DOUBLE", "regularizer")
   val patternsOut = new CmdOption("patterns-out", "", "FILE", "Top-scored columns, for test columns.")
+  val exportData = new CmdOption("export-data", false, "BOOLEAN", "export data and embeddings.")
+  val loadModel = new CmdOption("load-model", false, "BOOLEAN", "load embeddings from file")
 }
 
 
@@ -94,6 +98,63 @@ TrainTestTacData {
     result = model.similaritiesAndLabels(trainKb, testKb)
     println("MAP after 200 iterations: " + Evaluator.meanAveragePrecision(result))
   }
+
+  def exportTrainMatrix(trainKb : StringStringKBMatrix): Unit ={
+    // non zero row / col cells as ints
+    var writer = new PrintWriter("train.mtx")
+    trainKb.matrix.getNnzCells().foreach(t => writer.println(s"${t._1}\t${t._2}"))
+    writer.close()
+    // row -> string map
+    writer = new PrintWriter("row-map.tsv")
+    trainKb.__rowMap.keyIterator.foreach(key => writer.println(s"${trainKb.__rowMap.keyToIndex(key)}\t$key"))
+    writer.close()
+    // col -> string map
+    writer = new PrintWriter("col-map.tsv")
+    trainKb.__colMap.keyIterator.foreach(key => writer.println(s"${trainKb.__colMap.keyToIndex(key)}\t$key"))
+    writer.close()
+  }
+
+  def exportTestMatrix(trainDevMatrix: StringStringKBMatrix, testMatrix: StringStringKBMatrix, testCols: Option[Set[Int]] = None) ={
+    val columns = testCols match {
+      case Some(cols) => cols
+      case None => testMatrix.matrix.nonZeroCols()
+    }
+    new File("test-mtx").mkdir()
+    columns.par.foreach(col => {
+      val writer = new PrintWriter(s"test-mtx/$col-test.mtx")
+      for (row <- 0 until testMatrix.numRows();
+           if trainDevMatrix.matrix.get(row, col) == 0) yield {
+        val isTrueTest = testMatrix.matrix.get(row, col) != 0
+        // convert test row / col to train row/col
+        writer.write(s"$row\t$col\t${if (isTrueTest) 1 else 0}\n")
+      }
+      writer.close()
+    })
+  }
+
+  def exportEmbeddings(model : UniversalSchemaModel): Unit ={
+    var writer = new PrintWriter("col.embeddings")
+    model.colVectors.zipWithIndex.foreach{ case (vector, i) => writer.println(s"${i+1}\t${vector.mkString(" ")}") }
+    writer.close()
+    writer = new PrintWriter("row.embeddings")
+    model.rowVectors.zipWithIndex.foreach{ case (vector, i) => writer.println(s"${i+1}\t${vector.mkString(" ")}") }
+    writer.close()
+  }
+
+  def loadEmbeddings(): (IndexedSeq[DenseTensor1], IndexedSeq[DenseTensor1]) = {
+    val rowEmbeddings = Source.fromFile("row.embeddings").getLines().map(line => {
+      val Array(index, vector) = line.split("\t")
+      val values = vector.split(" ")
+      new DenseTensor1(values.map(_.toDouble))
+    }).toIndexedSeq
+    val colEmbeddings = Source.fromFile("col.embeddings").getLines().map(line => {
+      val Array(index, vector) = line.split("\t")
+      val values = vector.split(" ")
+      new DenseTensor1(values.map(_.toDouble))
+    }).toIndexedSeq
+
+    (rowEmbeddings, colEmbeddings)
+  }
 }
 
 
@@ -113,38 +174,9 @@ object ExportData  extends TrainTestTacData {
     val (trainKb, _, testKb) = kb.randomTestSplit(numDev, numTest, None, Some(testCols), random)
 
     // export training matrix
-    // non zero row / col cells as ints
-    var writer = new PrintWriter("train.mtx")
-    trainKb.matrix.getNnzCells().foreach(t => writer.println(s"${t._1}\t${t._2}"))
-    writer.close()
-    // row -> string map
-    writer = new PrintWriter("row-map.tsv")
-    trainKb.__rowMap.keyIterator.foreach(key => writer.println(s"${trainKb.__rowMap.keyToIndex(key)}\t$key"))
-    writer.close()
-    // col -> string map
-    writer = new PrintWriter("col-map.tsv")
-    trainKb.__colMap.keyIterator.foreach(key => writer.println(s"${trainKb.__colMap.keyToIndex(key)}\t$key"))
-    writer.close()
-
+    exportTrainMatrix(trainKb)
     // export test matrix
-    exportTestMatrix(trainKb.matrix, testKb.matrix)
-  }
-
-  def exportTestMatrix(trainDevMatrix: CoocMatrix, testMatrix: CoocMatrix, testCols: Option[Set[Int]] = None, export : Boolean = true) ={
-    val columns = testCols match {
-      case Some(cols) => cols
-      case None => testMatrix.nonZeroCols()
-    }
-    new File("test-mtx").mkdir()
-    columns.par.foreach(col => {
-      val writer = new PrintWriter(s"test-mtx/$col-test.mtx")
-      for (row <- 0 until testMatrix.numRows();
-                         if trainDevMatrix.get(row, col) == 0) yield {
-        val isTrueTest = testMatrix.get(row, col) != 0
-        writer.write(s"$row\t$col\t${if (isTrueTest) 1 else 0}\n")
-      }
-      writer.close()
-    })
+    exportTestMatrix(trainKb, testKb)
   }
 }
 
@@ -168,7 +200,12 @@ object TrainTestTacData  extends TrainTestTacData{
       val numTest = 10000
       val (trainKb, devKb, testKb) = kb.randomTestSplit(numDev, numTest, None, Some(testCols), random)
 
-      val model = UniversalSchemaModel.randomModel(kb.numRows(), kb.numCols(), opts.dim.value, random)
+      val model = if (opts.loadModel.value) {
+          val (rowEmbeddings, colEmbeddings) = loadEmbeddings()
+          new UniversalSchemaModel(rowEmbeddings, colEmbeddings)
+        }
+        else UniversalSchemaModel.randomModel(kb.numRows(), kb.numCols(), opts.dim.value, random)
+
       val trainer = if(opts.useMaxNorm.value) {
         println("use norm constraint")
         new NormConstrainedBprUniversalSchemaTrainer(opts.maxNorm.value, opts.stepsize.value, opts.dim.value,
@@ -183,6 +220,11 @@ object TrainTestTacData  extends TrainTestTacData{
 
       if (!opts.patternsOut.value.isEmpty) {
         kb.writeTopPatterns(testCols, model, 0.5, opts.patternsOut.value)
+      }
+      if (opts.exportData.value) {
+        exportTrainMatrix(trainKb)
+        exportTestMatrix(trainKb, testKb)
+        exportEmbeddings(model)
       }
     }
 }
