@@ -1,6 +1,6 @@
 package cc.factorie.epistemodb.tac
 
-import java.io.PrintWriter
+import java.io.{File, PrintWriter}
 
 import com.google.common.collect.HashBiMap
 
@@ -110,8 +110,7 @@ object ExportData  extends TrainTestTacData {
     val random = new Random(0)
     val numDev = 0
     val numTest = 10000
-    val (trainKb, devKb, testKb) = kb.randomTestSplit(numDev, numTest, None, Some(testCols), random)
-    val model = UniversalSchemaModel.randomModel(kb.numRows(), kb.numCols(), opts.dim.value, random)
+    val (trainKb, _, testKb) = kb.randomTestSplit(numDev, numTest, None, Some(testCols), random)
 
     // export training matrix
     // non zero row / col cells as ints
@@ -128,7 +127,24 @@ object ExportData  extends TrainTestTacData {
     writer.close()
 
     // export test matrix
-    model.similaritiesAndLabels(trainKb.matrix, testKb.matrix, export = true)
+    exportTestMatrix(trainKb.matrix, testKb.matrix)
+  }
+
+  def exportTestMatrix(trainDevMatrix: CoocMatrix, testMatrix: CoocMatrix, testCols: Option[Set[Int]] = None, export : Boolean = true) ={
+    val columns = testCols match {
+      case Some(cols) => cols
+      case None => testMatrix.nonZeroCols()
+    }
+    new File("test-mtx").mkdir()
+    columns.par.foreach(col => {
+      val writer = new PrintWriter(s"test-mtx/$col-test.mtx")
+      for (row <- 0 until testMatrix.numRows();
+                         if trainDevMatrix.get(row, col) == 0) yield {
+        val isTrueTest = testMatrix.get(row, col) != 0
+        writer.write(s"$row\t$col\t${if (isTrueTest) 1 else 0}\n")
+      }
+      writer.close()
+    })
   }
 }
 
