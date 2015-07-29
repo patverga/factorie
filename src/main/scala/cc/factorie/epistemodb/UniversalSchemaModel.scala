@@ -49,7 +49,6 @@ abstract class MatrixModel {
     simsAndLabels
   }
 
-
   /**
    * Compute uschema scores for all cells in test (target) Columns.
    * Rows that contain an entry for the specific target column are ignored by default.
