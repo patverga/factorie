@@ -134,23 +134,19 @@ TrainTestTacData {
 
   def exportEmbeddings(model : UniversalSchemaModel): Unit ={
     var writer = new PrintWriter("col.embeddings")
-    model.colVectors.zipWithIndex.foreach{ case (vector, i) => writer.println(s"${i+1}\t${vector.mkString(" ")}") }
+    model.colVectors.zipWithIndex.foreach{ case (vector, i) => writer.println(s"${vector.mkString(" ")}") }
     writer.close()
     writer = new PrintWriter("row.embeddings")
-    model.rowVectors.zipWithIndex.foreach{ case (vector, i) => writer.println(s"${i+1}\t${vector.mkString(" ")}") }
+    model.rowVectors.zipWithIndex.foreach{ case (vector, i) => writer.println(s"${vector.mkString(" ")}") }
     writer.close()
   }
 
   def loadEmbeddings(): (IndexedSeq[DenseTensor1], IndexedSeq[DenseTensor1]) = {
     val rowEmbeddings = Source.fromFile("row.embeddings").getLines().map(line => {
-      val Array(index, vector) = line.split("\t")
-      val values = vector.split(" ")
-      new DenseTensor1(values.map(_.toDouble))
+      new DenseTensor1(line.split(" ").map(_.toDouble))
     }).toIndexedSeq
     val colEmbeddings = Source.fromFile("col.embeddings").getLines().map(line => {
-      val Array(index, vector) = line.split("\t")
-      val values = vector.split(" ")
-      new DenseTensor1(values.map(_.toDouble))
+      new DenseTensor1(line.split(" ").map(_.toDouble))
     }).toIndexedSeq
 
     (rowEmbeddings, colEmbeddings)
