@@ -33,7 +33,7 @@ abstract class MatrixModel {
       case Some(cols) => cols
       case None => testMatrix.nonZeroCols()
     }
-    if (export) new File("test.mtx").mkdir()
+    if (export) new File("test-mtx").mkdir()
     val simsAndLabels = columns.par.map(col => {
       val writer = if (export) Some(new PrintWriter(s"test-mtx/$col-test.mtx")) else None
       val scores = {for (row <- (0 until testMatrix.numRows());
