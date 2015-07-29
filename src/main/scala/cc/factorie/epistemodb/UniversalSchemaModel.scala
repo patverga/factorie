@@ -40,7 +40,7 @@ abstract class MatrixModel {
                          if trainDevMatrix.get(row, col) == 0) yield {
         val sim = similarity01(row, col)
         val isTrueTest = testMatrix.get(row, col) != 0
-        if (export) writer.get.write(s"$row\t$col\t$isTrueTest\n")
+        if (export) writer.get.write(s"$row\t$col\t${if (isTrueTest) 1 else 0}\n")
         (sim, isTrueTest)
       }}.toSeq
       if (export) writer.get.close()
