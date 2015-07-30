@@ -14,7 +14,7 @@ import scala.collection.JavaConversions._
 /**
  * Holds a generic matrix that can be written to MongoDB.
  */
-class CoocMatrix(var _numRows: Int, var _numCols:Int) extends MongoWritable {
+class CoocMatrix(var _numRows: Int, var _numCols: Int) extends MongoWritable {
   var rowToColAndVal = new mutable.HashMap[Int, mutable.HashMap[Int, Double]]
   // Backpointers for efficiency
   var colToRows = new mutable.HashMap[Int, mutable.Set[Int]]
@@ -43,7 +43,7 @@ class CoocMatrix(var _numRows: Int, var _numCols:Int) extends MongoWritable {
         rowToColAndVal.remove(rowNr)
       }
       val col = colToRows.get(colNr).get
-      col-=rowNr
+      col -= rowNr
       if (col.isEmpty) {
         colToRows.remove(colNr)
       }
@@ -52,10 +52,10 @@ class CoocMatrix(var _numRows: Int, var _numCols:Int) extends MongoWritable {
         __nnz += 1
       }
       val row = rowToColAndVal.getOrElseUpdate(rowNr, new mutable.HashMap[Int, Double]())
-      row.update(colNr,cellValue)
+      row.update(colNr, cellValue)
 
       val col = colToRows.getOrElseUpdate(colNr, new mutable.HashSet[Int]())
-      col+=rowNr
+      col += rowNr
     }
 
     // In any case grow the dimensions if necessary.
@@ -71,9 +71,9 @@ class CoocMatrix(var _numRows: Int, var _numCols:Int) extends MongoWritable {
    * This is similar to an '==' method, however, we don't override it, since it relies on mutable fields (which may pose
    * problems e.g. in hash maps)
    *
-   *   @param m2
+   * @param m2
    */
-  def hasSameContent(m2: CoocMatrix ): Boolean = {
+  def hasSameContent(m2: CoocMatrix): Boolean = {
     return m2.numRows() == _numRows && m2.numCols() == _numCols && m2.getRows() == rowToColAndVal && m2.getCols() == colToRows
   }
 
@@ -86,22 +86,24 @@ class CoocMatrix(var _numRows: Int, var _numCols:Int) extends MongoWritable {
   }
 
   def numRows() = _numRows
+
   def numCols() = _numCols
 
   protected def getRows() = rowToColAndVal
+
   protected def getCols() = colToRows
 
   /**
    * Filters the matrix depending on row and column thresholds for the minimum number of non-zero cells.
    *
    * The filtering steps are:
-   *  1. remove rows with number of cells <= tRow and columns with number of cells <= tCol
-   *  2. find biggest connected component
-   *  3. remove columns not in biggest connected component
-   *  4. remove rows without (valid) column entries
-   *  5. re-assign column and row numbering
+   * 1. remove rows with number of cells <= tRow and columns with number of cells <= tCol
+   * 2. find biggest connected component
+   * 3. remove columns not in biggest connected component
+   * 4. remove rows without (valid) column entries
+   * 5. re-assign column and row numbering
    *
-   *  It returns the pruned matrix, as well as mappings from old to new row and column indices.
+   * It returns the pruned matrix, as well as mappings from old to new row and column indices.
    *
    * @param tRow
    * @param tCol
@@ -111,7 +113,7 @@ class CoocMatrix(var _numRows: Int, var _numCols:Int) extends MongoWritable {
     val marks = Array.fill[Int](_numRows + _numCols)(0)
     var components = 0
 
-    val compToSize = mutable.Map[Int,Int]()
+    val compToSize = mutable.Map[Int, Int]()
 
     for (r <- 0 until _numRows) {
       if (marks(r) == 0) {
@@ -126,9 +128,9 @@ class CoocMatrix(var _numRows: Int, var _numCols:Int) extends MongoWritable {
         q.enqueue(r)
 
         while (!q.isEmpty) {
-          val v : Int = q.dequeue()
+          val v: Int = q.dequeue()
           if (rowToColAndVal.contains(v) ||
-              colToRows.contains(v - _numRows) ){
+            colToRows.contains(v - _numRows)) {
             var offset = 0
             // Current row/column has outgoing pointers.
             val adj: Iterable[Int] = if (v < _numRows) {
@@ -139,7 +141,7 @@ class CoocMatrix(var _numRows: Int, var _numCols:Int) extends MongoWritable {
               colToRows.get(v - _numRows).get.filter(r => rowToColAndVal.get(r).get.size > tRow)
               // get the rows; no offset
             }
-            for  (a <- adj; if marks(a + offset) == 0) {
+            for (a <- adj; if marks(a + offset) == 0) {
               marks(a + offset) = components
               compToSize(components) += 1
               q.enqueue(a + offset)
@@ -152,9 +154,9 @@ class CoocMatrix(var _numRows: Int, var _numCols:Int) extends MongoWritable {
     val maxComp = compToSize.maxBy(_._2)._1
 
     // Build new, smaller matrix
-    val prunedMatrix = new CoocMatrix(0,0) // grow on the fly
+    val prunedMatrix = new CoocMatrix(0, 0) // grow on the fly
 
-    val oldToNewCols = mutable.Map[Int,Int]()
+    val oldToNewCols = mutable.Map[Int, Int]()
     var newColIdx = 0
     for (c <- 0 until _numCols;
          if marks(c + _numRows) == maxComp) {
@@ -162,7 +164,7 @@ class CoocMatrix(var _numRows: Int, var _numCols:Int) extends MongoWritable {
       newColIdx += 1
     }
 
-    val oldToNewRows = mutable.Map[Int,Int]()
+    val oldToNewRows = mutable.Map[Int, Int]()
     var newRowIdx = 0
     for (r <- 0 until _numRows;
          if marks(r) == maxComp) {
@@ -190,7 +192,7 @@ class CoocMatrix(var _numRows: Int, var _numCols:Int) extends MongoWritable {
    * be smaller than specified.
    */
   def randomTestSplit(numDevNNZ: Int, numTestNNZ: Int, testRows: Option[Set[Int]] = None,
-                      testCols: Option[Set[Int]] = None, random:Random = new Random(0)): (CoocMatrix, CoocMatrix, CoocMatrix) = {
+                      testCols: Option[Set[Int]] = None, random: Random = new Random(0)): (CoocMatrix, CoocMatrix, CoocMatrix) = {
 
 
     // first sort, then shuffle (wrt the seed) -- in order to reproduce exactly the same ordering, no matter what
@@ -223,7 +225,7 @@ class CoocMatrix(var _numRows: Int, var _numCols:Int) extends MongoWritable {
 
 
   def getNnzCells(): Seq[(Int, Int)] = {
-    for((k1, v1) <- rowToColAndVal.toSeq; k2 <- v1.keys) yield (k1, k2)
+    for ((k1, v1) <- rowToColAndVal.toSeq; k2 <- v1.keys) yield (k1, k2)
   }
 
   /*
@@ -243,7 +245,7 @@ vals: [<DOUBLE>]
     val builder = collection.initializeUnorderedBulkOperation();
     for (row <- getRows) {
       val rowNr = row._1
-      val colsCellVals : mutable.HashMap[Int, Double] = row._2
+      val colsCellVals: mutable.HashMap[Int, Double] = row._2
 
       // TODO: here we a re using the java mongo drivers -- maybe we should go over to using the Scala Casbah drivers.
       val mongoCols = new BasicBSONList
@@ -265,7 +267,7 @@ vals: [<DOUBLE>]
     val collection: DBCollection = mongoDb.getCollection(collectionName)
     val cursor: DBCursor = collection.find();
     try {
-      while(cursor.hasNext()) {
+      while (cursor.hasNext()) {
         val rowObject: DBObject = cursor.next()
         val rowNr = rowObject.get(CoocMatrix.ROW_NR).asInstanceOf[Int]
         val mongoCols: BasicDBList = rowObject.get(CoocMatrix.COL_LIST).asInstanceOf[BasicDBList]
@@ -318,23 +320,23 @@ val: <DOUBLE>
   */
 }
 
-class EntityPairCoocMatrix(numRows: Int, numCols:Int, var _numEnts: Int) extends CoocMatrix(numRows,  numCols) {
+class EntityPairCoocMatrix(numRows: Int, numCols: Int, var _numEnts: Int) extends CoocMatrix(numRows, numCols) {
   var rowEntsBimap: BiMap[Int, (Int, Int)] = HashBiMap.create[Int, (Int, Int)]()
 
   override def set(rowNr: Int, colNr: Int, cellValue: Double) {
-    if (rowNr>=_numRows) {
+    if (rowNr >= _numRows) {
       throw new IllegalArgumentException("Cannot specify new row without entities. Use set(e1,e2,col, cellVal).")
     }
     super.set(rowNr, colNr, cellValue)
   }
 
-  def set(e1: Int, e2:Int, colNr: Int, cellValue: Double) {
-    if (!rowEntsBimap.containsValue((e1,e2))) {
+  def set(e1: Int, e2: Int, colNr: Int, cellValue: Double) {
+    if (!rowEntsBimap.containsValue((e1, e2))) {
       _numEnts = math.max(_numEnts, math.max(e1 + 1, e2 + 1))
       rowEntsBimap.put(_numRows, (e1, e2))
       _numRows += 1
     }
-    val rowNr = rowEntsBimap.inverse().get((e1,e2))
+    val rowNr = rowEntsBimap.inverse().get((e1, e2))
     super.set(rowNr, colNr, cellValue)
   }
 
@@ -345,9 +347,11 @@ class EntityPairCoocMatrix(numRows: Int, numCols:Int, var _numEnts: Int) extends
 
     val updatedBimap: HashBiMap[Int, (Int, Int)] = HashBiMap.create[Int, (Int, Int)](rowEntsBimap.size())
 
-    for(oldRowId <- rowEntsBimap.keySet()) {
-      val newRowId = rowMap.get(oldRowId).get
-      updatedBimap.put(newRowId, rowEntsBimap.get(oldRowId))
+    for (oldRowId <- rowEntsBimap.keySet()) {
+      if (rowMap.contains(oldRowId)) {
+        val newRowId = rowMap.get(oldRowId).get
+        updatedBimap.put(newRowId, rowEntsBimap.get(oldRowId))
+      }
     }
 
     prunedEpMatrix.rowEntsBimap = updatedBimap
@@ -388,20 +392,20 @@ object CoocMatrix {
 
     */
 
-  def fromTensor2(t:Tensor2 with SparseTensor):CoocMatrix = {
+  def fromTensor2(t: Tensor2 with SparseTensor): CoocMatrix = {
     t._makeReadable()
     val m = new CoocMatrix(0, 0) // grow on the fly
-    t.foreachActiveElement{ case(i, value) =>
-      val col = i%t.dim1
-      val row = i/t.dim2
+    t.foreachActiveElement { case (i, value) =>
+      val col = i % t.dim1
+      val row = i / t.dim2
       m.set(row, col, value)
     }
     m
   }
 
-  def randomOneZeroMatrix(numRows: Int, numCols: Int, maxNnz:Int, random:Random = new Random(0), underlyingTopics: Int = 1, noiseRatio: Double = 0.1): CoocMatrix = {
+  def randomOneZeroMatrix(numRows: Int, numCols: Int, maxNnz: Int, random: Random = new Random(0), underlyingTopics: Int = 1, noiseRatio: Double = 0.1): CoocMatrix = {
     val m = new CoocMatrix(numRows, numCols)
-    (1 to maxNnz).foreach( _ => {
+    (1 to maxNnz).foreach(_ => {
       val rowNr = random.nextInt(numRows)
       // rows and columns belong to classes according to their modulo value.
       val rowClass = rowNr % underlyingTopics
@@ -432,11 +436,11 @@ object CoocMatrix {
 
 
 object EntityPairCoocMatrix {
-  def randomOneZeroMatrix(numRows: Int, numCols: Int, maxNnz:Int, random:Random = new Random(0), underlyingTopics: Int = 1, noiseRatio: Double = 0.1): EntityPairCoocMatrix = {
+  def randomOneZeroMatrix(numRows: Int, numCols: Int, maxNnz: Int, random: Random = new Random(0), underlyingTopics: Int = 1, noiseRatio: Double = 0.1): EntityPairCoocMatrix = {
     val m = CoocMatrix.randomOneZeroMatrix(numRows, numCols, maxNnz, random, underlyingTopics, noiseRatio)
-    val numEnts =  numRows*2
+    val numEnts = numRows * 2
     val bimap: HashBiMap[Int, (Int, Int)] = HashBiMap.create[Int, (Int, Int)](numEnts)
-    for(rowId <- 0 until numRows) {
+    for (rowId <- 0 until numRows) {
       bimap.put(rowId, (rowId, numRows + rowId))
     }
     val epMatrix = new EntityPairCoocMatrix(numRows, numCols, numEnts)

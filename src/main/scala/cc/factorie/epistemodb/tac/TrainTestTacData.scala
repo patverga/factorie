@@ -132,6 +132,43 @@ TrainTestTacData {
     })
   }
 
+  def exportTransETrainMatrix(trainKb : TransEKBMatrix): Unit ={
+    // non zero row / col cells as ints
+    var writer = new PrintWriter("train.mtx")
+    trainKb.matrix.getNnzCells().foreach(t => {
+      val (e1, e2) = trainKb.matrix.rowEntsBimap.get(t._1)
+      writer.println(s"$e1\t$e2\t${t._1}\t${t._2}")
+    })
+    writer.close()
+    // row -> string map
+    writer = new PrintWriter("row-map.tsv")
+    trainKb.__rowMap.keyIterator.foreach(key => writer.println(s"${trainKb.__rowMap.keyToIndex(key)}\t$key"))
+    writer.close()
+    // col -> string map
+    writer = new PrintWriter("col-map.tsv")
+    trainKb.__colMap.keyIterator.foreach(key => writer.println(s"${trainKb.__colMap.keyToIndex(key)}\t$key"))
+    writer.close()
+  }
+
+  def exportTransETestMatrix(trainDevMatrix: TransEKBMatrix, testMatrix: TransEKBMatrix, testCols: Option[Set[Int]] = None) ={
+    val columns = testCols match {
+      case Some(cols) => cols
+      case None => testMatrix.matrix.nonZeroCols()
+    }
+    new File("test-mtx").mkdir()
+    columns.par.foreach(col => {
+      val writer = new PrintWriter(s"test-mtx/$col-test.mtx")
+      for (row <- 0 until testMatrix.numRows();
+           if trainDevMatrix.matrix.get(row, col) == 0) yield {
+        val isTrueTest = testMatrix.matrix.get(row, col) != 0
+        // convert test row / col to train row/col
+        val (e1, e2) = trainDevMatrix.matrix.rowEntsBimap.get(row)
+        writer.write(s"$e1\t$e2\t$row\t$col\t${if (isTrueTest) 1 else 0}\n")
+      }
+      writer.close()
+    })
+  }
+
   def exportEmbeddings(model : UniversalSchemaModel): Unit ={
     var writer = new PrintWriter("col.embeddings")
     model.colVectors.zipWithIndex.foreach{ case (vector, i) => writer.println(s"${vector.mkString(" ")}") }
@@ -292,7 +329,7 @@ object TrainTestTacDataTransE extends TrainTestTacData{
 
     val tReadStart = System.currentTimeMillis
     //      val kb = EntityRelationKBMatrix.fromTsv(opts.tacData.value).prune(2,1)
-    val kb = TransEKBMatrix.fromTsv(opts.tacData.value)//.pruneWithEntities(2,1)
+    val kb = TransEKBMatrix.fromTsv(opts.tacData.value).pruneWithEntities(2,1)
     val tRead = (System.currentTimeMillis - tReadStart)/1000.0
     println(f"Reading from file and pruning took $tRead%.2f s")
 
@@ -314,9 +351,9 @@ object TrainTestTacDataTransE extends TrainTestTacData{
     evaluate(model, trainer, trainKb.matrix, testKb.matrix)
 
 
-    //    if (!opts.patternsOut.value.isEmpty) {
-    //      kb.writeTopPatterns(testCols, model, 0.5, opts.patternsOut.value)
-    //    }
-
+    if (opts.exportData.value) {
+      exportTransETrainMatrix(trainKb)
+      exportTransETestMatrix(trainKb, testKb)
+    }
   }
 }
