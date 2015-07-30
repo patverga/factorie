@@ -195,7 +195,7 @@ object ExportData  extends TrainTestTacData {
   def main(args: Array[String]): Unit = {
     opts.parse(args)
 
-    val kb = StringStringKBMatrix.fromTsv(opts.tacData.value).prune(2, 1)
+    val kb = TransEKBMatrix.fromTsv(opts.tacData.value).pruneWithEntities(2,1)
     println("Stats:")
     println("Num Rows:" + kb.numRows())
     println("Num Cols:" + kb.numCols())
@@ -207,9 +207,10 @@ object ExportData  extends TrainTestTacData {
     val (trainKb, _, testKb) = kb.randomTestSplit(numDev, numTest, None, Some(testCols), random)
 
     // export training matrix
-    exportTrainMatrix(trainKb)
+    exportTransETrainMatrix(trainKb)
     // export test matrix
-    exportTestMatrix(trainKb, testKb)
+    exportTransETestMatrix(trainKb, testKb)
+
   }
 }
 
@@ -267,7 +268,6 @@ object TrainTestTacDataAdaGrad  extends TrainTestTacData{
     opts.parse(args)
 
     val tReadStart = System.currentTimeMillis
-    //      val kb = EntityRelationKBMatrix.fromTsv(opts.tacData.value).prune(2,1)
     val kb = StringStringKBMatrix.fromTsv(opts.tacData.value).prune(2,1)
     val tRead = (System.currentTimeMillis - tReadStart)/1000.0
     println(f"Reading from file and pruning took $tRead%.2f s")
@@ -315,11 +315,6 @@ object TrainTestTacDataColAverage extends TrainTestTacData{
       opts.margin.value, trainKb.matrix, model, random)
 
     evaluate(model, trainer, trainKb.matrix, testKb.matrix)
-
-    //    if (!opts.patternsOut.value.isEmpty) {
-//      kb.writeTopPatterns(testCols, model, 0.5, opts.patternsOut.value)
-//    }
-
   }
 }
 
@@ -328,7 +323,6 @@ object TrainTestTacDataTransE extends TrainTestTacData{
     opts.parse(args)
 
     val tReadStart = System.currentTimeMillis
-    //      val kb = EntityRelationKBMatrix.fromTsv(opts.tacData.value).prune(2,1)
     val kb = TransEKBMatrix.fromTsv(opts.tacData.value).pruneWithEntities(2,1)
     val tRead = (System.currentTimeMillis - tReadStart)/1000.0
     println(f"Reading from file and pruning took $tRead%.2f s")
