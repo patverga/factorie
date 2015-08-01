@@ -310,7 +310,12 @@ object TrainTestTacDataColAverage extends TrainTestTacData{
     val numTest = 10000
     val (trainKb, devKb, testKb) = kb.randomTestSplit(numDev, numTest, None, Some(testCols), random)
     val rowToCols = trainKb.matrix.rowToColAndVal.map{ case (row, cols) => row -> cols.keys.toIndexedSeq}.toMap
-    val model = ColumnAverageModel.randomModel(rowToCols, kb.numCols(), opts.dim.value, random)
+    val model = if (opts.loadModel.value) {
+      val (rowEmbeddings, colEmbeddings) = loadEmbeddings()
+      new ColumnAverageModel(rowToCols, colEmbeddings, colEmbeddings.length, scoreType = "cbow")
+    }
+    else ColumnAverageModel.randomModel(rowToCols, kb.numCols(), opts.dim.value, random)
+
     val trainer = new ColumnAverageTrainer(opts.regularizer.value, opts.stepsize.value, opts.dim.value,
       opts.margin.value, trainKb.matrix, model, random)
 
