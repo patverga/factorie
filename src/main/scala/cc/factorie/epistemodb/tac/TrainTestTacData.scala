@@ -228,7 +228,10 @@ object TrainTestTacData  extends TrainTestTacData{
       val (trainKb, devKb, testKb) = kb.randomTestSplit(numDev, numTest, None, Some(testCols), random)
 
       val model = if (opts.loadModel.value != "") {
-          val rowEmbeddings = loadEmbeddings(opts.loadModel.value + "/row.embeddings")
+          val rowEmbeddings = if (new File(opts.loadModel.value + "/row.embeddings").exists())
+            loadEmbeddings(opts.loadModel.value + "/row.embeddings")
+          else
+            (0 until kb.numRows()).map(i => new DenseTensor1(UniversalSchemaModel.initVector(opts.dim.value)))
           val colEmbeddings = loadEmbeddings(opts.loadModel.value + "/col.embeddings")
           new UniversalSchemaModel(rowEmbeddings, colEmbeddings)
         }

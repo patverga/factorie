@@ -14,6 +14,7 @@ import scala.collection.JavaConversions._
 
 
 abstract class MatrixModel {
+
   def similarity01(row: Int, col: Int): Double
 
   /**
@@ -185,12 +186,15 @@ object UniversalSchemaModel {
     throw new UnsupportedOperationException
   }
 
-  def randomModel(numRows: Int, numCols:Int, dim: Int, random: Random = new Random(0)): UniversalSchemaModel = {
+  def initVector(dim : Int, random : Random = new Random(0)): Array[Double] = {
     val scale = 1.0 / dim
-    def initVector(): Array[Double] = Array.fill[Double](dim)(scale * random.nextGaussian())
+    Array.fill[Double](dim)(scale * random.nextGaussian())
+  }
+
+  def randomModel(numRows: Int, numCols:Int, dim: Int, random: Random = new Random(0)): UniversalSchemaModel = {
     //def initVector(i: Int): Array[Double] = Array.fill[Double](latentDimensionality)(2*random.nextDouble() - 1.0)
-    val rowVectors = (0 until numRows).map(i => new DenseTensor1(initVector))
-    val colVectors = (0 until numCols).map(i => new DenseTensor1(initVector))
+    val rowVectors = (0 until numRows).map(i => new DenseTensor1(initVector(dim, random)))
+    val colVectors = (0 until numCols).map(i => new DenseTensor1(initVector(dim, random)))
     new UniversalSchemaModel(rowVectors, colVectors)
   }
 
