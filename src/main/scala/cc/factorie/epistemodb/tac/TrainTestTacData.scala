@@ -2,7 +2,7 @@ package cc.factorie.epistemodb.tac
 
 import java.io.{File, PrintWriter}
 
-import cc.factorie.la.{DenseTensor1, DenseTensor}
+import cc.factorie.la.{Tensor, DenseTensor1, DenseTensor}
 import com.google.common.collect.HashBiMap
 
 import scala.io.Source
@@ -22,8 +22,9 @@ class TrainTestTacDataOptions extends cc.factorie.util.DefaultCmdOptions {
   val useMaxNorm =  new CmdOption("use-max-norm", true, "BOOLEAN", "whether to use maximum l2-norm for vectors")
   val regularizer = new CmdOption("regularizer", 0.01, "DOUBLE", "regularizer")
   val patternsOut = new CmdOption("patterns-out", "", "FILE", "Top-scored columns, for test columns.")
-  val exportData = new CmdOption("export-data", false, "BOOLEAN", "export data and embeddings.")
-  val loadModel = new CmdOption("load-model", false, "BOOLEAN", "load embeddings from file")
+  val exportData = new CmdOption("export-data", false, "BOOLEAN", "export train and test data to file.")
+  val exportEmbeddings = new CmdOption("export-model", "", "STRING", "export embeddings to this directory.")
+  val loadModel = new CmdOption("load-model", "", "STRING", "load embeddings from file")
 }
 
 
@@ -169,24 +170,16 @@ TrainTestTacData {
     })
   }
 
-  def exportEmbeddings(model : UniversalSchemaModel): Unit ={
-    var writer = new PrintWriter("col.embeddings")
-    model.colVectors.zipWithIndex.foreach{ case (vector, i) => writer.println(s"${vector.mkString(" ")}") }
-    writer.close()
-    writer = new PrintWriter("row.embeddings")
-    model.rowVectors.zipWithIndex.foreach{ case (vector, i) => writer.println(s"${vector.mkString(" ")}") }
+  def exportEmbeddings(embeddings : IndexedSeq[Tensor], outFile : String): Unit ={
+    val writer = new PrintWriter(outFile)
+    embeddings.zipWithIndex.foreach{ case (vector, i) => writer.println(s"${vector.mkString(" ")}") }
     writer.close()
   }
 
-  def loadEmbeddings(): (IndexedSeq[DenseTensor1], IndexedSeq[DenseTensor1]) = {
-    val rowEmbeddings = Source.fromFile("row.embeddings").getLines().map(line => {
+  def loadEmbeddings(embeddingFile : String): IndexedSeq[DenseTensor1] = {
+    Source.fromFile(embeddingFile).getLines().map(line => {
       new DenseTensor1(line.split(" ").map(_.toDouble))
     }).toIndexedSeq
-    val colEmbeddings = Source.fromFile("col.embeddings").getLines().map(line => {
-      new DenseTensor1(line.split(" ").map(_.toDouble))
-    }).toIndexedSeq
-
-    (rowEmbeddings, colEmbeddings)
   }
 }
 
@@ -234,8 +227,9 @@ object TrainTestTacData  extends TrainTestTacData{
       val numTest = 10000
       val (trainKb, devKb, testKb) = kb.randomTestSplit(numDev, numTest, None, Some(testCols), random)
 
-      val model = if (opts.loadModel.value) {
-          val (rowEmbeddings, colEmbeddings) = loadEmbeddings()
+      val model = if (opts.loadModel.value != "") {
+          val rowEmbeddings = loadEmbeddings(opts.loadModel.value + "/row.embeddings")
+          val colEmbeddings = loadEmbeddings(opts.loadModel.value + "/col.embeddings")
           new UniversalSchemaModel(rowEmbeddings, colEmbeddings)
         }
         else UniversalSchemaModel.randomModel(kb.numRows(), kb.numCols(), opts.dim.value, random)
@@ -258,7 +252,11 @@ object TrainTestTacData  extends TrainTestTacData{
       if (opts.exportData.value) {
         exportTrainMatrix(trainKb)
         exportTestMatrix(trainKb, testKb)
-        exportEmbeddings(model)
+      }
+      if( opts.exportEmbeddings.value != ""){
+        new File(opts.exportEmbeddings.value).mkdirs()
+        exportEmbeddings(model.colVectors, opts.exportEmbeddings.value +"/col.embeddings")
+        exportEmbeddings(model.rowVectors, opts.exportEmbeddings.value +"/row.embeddings")
       }
     }
 }
@@ -310,8 +308,8 @@ object TrainTestTacDataColAverage extends TrainTestTacData{
     val numTest = 10000
     val (trainKb, devKb, testKb) = kb.randomTestSplit(numDev, numTest, None, Some(testCols), random)
     val rowToCols = trainKb.matrix.rowToColAndVal.map{ case (row, cols) => row -> cols.keys.toIndexedSeq}.toMap
-    val model = if (opts.loadModel.value) {
-      val (rowEmbeddings, colEmbeddings) = loadEmbeddings()
+    val model = if (opts.loadModel.value != "") {
+      val colEmbeddings = loadEmbeddings(opts.loadModel.value + "/col.embeddings")
       new ColumnAverageModel(rowToCols, colEmbeddings, colEmbeddings.length, scoreType = "cbow")
     }
     else ColumnAverageModel.randomModel(rowToCols, kb.numCols(), opts.dim.value, random)
@@ -320,6 +318,11 @@ object TrainTestTacDataColAverage extends TrainTestTacData{
       opts.margin.value, trainKb.matrix, model, random)
 
     evaluate(model, trainer, trainKb.matrix, testKb.matrix)
+
+    if( opts.exportEmbeddings.value != ""){
+      new File(opts.exportEmbeddings.value).mkdirs()
+      exportEmbeddings(model.colVectors.map(_.value), opts.exportEmbeddings.value +"/col.embeddings")
+    }
   }
 }
 
