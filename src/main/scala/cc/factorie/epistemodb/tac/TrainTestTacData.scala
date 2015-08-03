@@ -292,7 +292,10 @@ object TrainTestTacDataAdaGrad  extends TrainTestTacData{
   }
 }
 
-object TrainTestTacDataColAverage extends TrainTestTacData{
+object TrainTestTacDataColAverage extends TrainTestTacDataCol("cbow")
+object TrainTestTacDataColMax extends TrainTestTacDataCol("max")
+
+class TrainTestTacDataCol(scroreType : String) extends TrainTestTacData{
   def main(args: Array[String]) : Unit = {
     opts.parse(args)
 
@@ -313,9 +316,9 @@ object TrainTestTacDataColAverage extends TrainTestTacData{
     val rowToCols = trainKb.matrix.rowToColAndVal.map{ case (row, cols) => row -> cols.keys.toIndexedSeq}.toMap
     val model = if (opts.loadModel.value != "") {
       val colEmbeddings = loadEmbeddings(opts.loadModel.value + "/col.embeddings")
-      new ColumnAverageModel(rowToCols, colEmbeddings, colEmbeddings.length, scoreType = "cbow")
+      new ColumnAverageModel(rowToCols, colEmbeddings, colEmbeddings.length, scoreType = scroreType)
     }
-    else ColumnAverageModel.randomModel(rowToCols, kb.numCols(), opts.dim.value, random)
+    else ColumnAverageModel.randomModel(rowToCols, kb.numCols(), opts.dim.value, random, scoreType = scroreType)
 
     val trainer = new ColumnAverageTrainer(opts.regularizer.value, opts.stepsize.value, opts.dim.value,
       opts.margin.value, trainKb.matrix, model, random)

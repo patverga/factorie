@@ -227,10 +227,10 @@ BprTrainer {
       case "max" =>
         val scoreTrueCell = model.scoreAndMax(posColVec.value, sharedRowVecs.map(_.value))
         val scoreFalseCell = model.scoreAndMax(negColVec.value, sharedRowVecs.map(_.value))
-        val maxOtherColVec = sharedRowVecs(scoreTrueCell._2)
+        val maxOtherColVec = if (scoreTrueCell._2 >= 0) sharedRowVecs(scoreTrueCell._2) else posColVec
         val diff = scoreTrueCell._1 - scoreFalseCell._1 - margin
         val objective = 1 - (1 / (1 + math.exp(-diff)))
-        val factor = if(objective > 0.0) 1.0 else 0.0
+        val factor = if (objective > 0.0) 1.0 else 0.0
         (new UniversalSchemaExample(posColVec, negColVec, maxOtherColVec, factor), objective)
       case _ => throw new NotImplementedError(s"${model.scoreType} is not a valid score type")
     }
