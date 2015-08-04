@@ -5,6 +5,7 @@ import java.io.{File, PrintWriter}
 import cc.factorie.la.{Tensor, DenseTensor1, DenseTensor}
 import com.google.common.collect.HashBiMap
 
+import scala.collection.Iterable
 import scala.io.Source
 import scala.util.Random
 import cc.factorie.epistemodb._
@@ -100,6 +101,31 @@ TrainTestTacData {
     println("MAP after 200 iterations: " + Evaluator.meanAveragePrecision(result))
   }
 
+  def exportExactTrain(trainKb : TransEKBMatrix): Unit ={
+    val random = new Random(0)
+    val writer = new PrintWriter("exact-train.mtx")
+    val batchedRows = random.shuffle(trainKb.matrix.rowToColAndVal).toSeq.grouped(1000).toArray
+    batchedRows.foreach(rowBatch => {
+      // Take a sliding window of two rows, and do bpr update.
+      rowBatch.sliding(2).foreach(rowPair =>
+      {
+        val rowTrue = rowPair(0)
+        val rowFalse = rowPair(1)
+        val rowIdxTrue = rowTrue._1
+        val rowIdxFalse = rowFalse._1
+        val colIndicesTrueRow = rowTrue._2.keys
+        val colIndicesFalseRow = rowFalse._2.keySet
+        // for only updating those where ranking is incorrect, check: model.score(rowTrueIdx, ci) < model.score(rowFalseIdx, ci)
+        val data: Iterable[Int] = colIndicesTrueRow.filter(!colIndicesFalseRow.contains(_))
+        //    colIndices1.filter(!colIndices2.contains(_)).flatMap(ci => List((rowTrueIdx, rowFalseIdx, ci)))
+        val shuffled: Iterable[Int] = random.shuffle(data)
+        shuffled.foreach(ci => writer.println(s"$rowIdxTrue\t$rowIdxFalse\t$ci"))
+        //println("positive indices: " + colIndices1.length + "\n updates: " + data.length + "\n objective: " + objectives.sum)
+      })
+    })
+    writer.close()
+  }
+
   def exportTrainMatrix(trainKb : StringStringKBMatrix): Unit ={
     // non zero row / col cells as ints
     var writer = new PrintWriter("train.mtx")
@@ -126,7 +152,6 @@ TrainTestTacData {
       for (row <- 0 until testMatrix.numRows();
            if trainDevMatrix.matrix.get(row, col) == 0) yield {
         val isTrueTest = testMatrix.matrix.get(row, col) != 0
-        // convert test row / col to train row/col
         writer.write(s"$row\t$col\t${if (isTrueTest) 1 else 0}\n")
       }
       writer.close()
@@ -199,6 +224,8 @@ object ExportData  extends TrainTestTacData {
     val numTest = 10000
     val (trainKb, _, testKb) = kb.randomTestSplit(numDev, numTest, None, Some(testCols), random)
 
+    // export exact training pairs
+    exportExactTrain(trainKb)
     // export training matrix
     exportTransETrainMatrix(trainKb)
     // export test matrix
