@@ -27,6 +27,7 @@ class TrainTestTacDataOptions extends cc.factorie.util.DefaultCmdOptions {
   val exportData = new CmdOption("export-data", false, "BOOLEAN", "export train and test data to file.")
   val exportEmbeddings = new CmdOption("export-model", "", "STRING", "export embeddings to this directory.")
   val loadModel = new CmdOption("load-model", "", "STRING", "load embeddings from file")
+  val testColFile = new CmdOption("test-col-file", "", "STRING", "file containing string names of the test columns to use")
 }
 
 
@@ -35,7 +36,10 @@ TrainTestTacData {
 
   val opts = new TrainTestTacDataOptions
 
-  val testCols = Set("org:alternate_names",
+  lazy val testCols = if (opts.testColFile.value != "")
+    Source.fromFile(opts.testColFile.value).getLines().toSet
+  else
+    Set("org:alternate_names",
     "org:city_of_headquarters",
     "org:country_of_headquarters",
     "org:date_dissolved",
@@ -211,7 +215,6 @@ object ExportData  extends TrainTestTacData {
 object TrainTestTacData  extends TrainTestTacData{
   def main(args: Array[String]) : Unit = {
       opts.parse(args)
-
       val tReadStart = System.currentTimeMillis
 //      val kb = EntityRelationKBMatrix.fromTsv(opts.tacData.value).prune(2,1)
       val kb = StringStringKBMatrix.fromTsv(opts.tacData.value, opts.colsPerEnt.value).prune(2,1)
@@ -226,6 +229,7 @@ object TrainTestTacData  extends TrainTestTacData{
       val random = new Random(0)
       val numDev = 0
       val numTest = 10000
+
       val (trainKb, devKb, testKb) = kb.randomTestSplit(numDev, numTest, None, Some(testCols), random)
 
       val model = if (opts.loadModel.value != "") {
