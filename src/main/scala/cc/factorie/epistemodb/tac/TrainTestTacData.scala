@@ -22,6 +22,8 @@ class TrainTestTacDataOptions extends cc.factorie.util.DefaultCmdOptions {
   val maxNorm =  new CmdOption("max-norm", 3.0, "DOUBLE", "maximum l2-norm for vectors")
   val margin =  new CmdOption("margin", 1.0, "DOUBLE", "size of margin to use for training")
   val useMaxNorm =  new CmdOption("use-max-norm", true, "BOOLEAN", "whether to use maximum l2-norm for vectors")
+  val minRowPrune = new CmdOption("row-min", 2, "INT", "minimum number of non-zero cells for a row to not be pruned")
+  val minColPrune = new CmdOption("col-min", 1, "INT", "minimum number of non-zero cells for a col to not be pruned")
   val regularizer = new CmdOption("regularizer", 0.01, "DOUBLE", "regularizer")
   val patternsOut = new CmdOption("patterns-out", "", "FILE", "Top-scored columns, for test columns.")
   val exportData = new CmdOption("export-data", false, "BOOLEAN", "export train and test data to file.")
@@ -82,6 +84,7 @@ TrainTestTacData {
     "per:title")
 
   def evaluate(model : MatrixModel, trainer : BprTrainer, trainKb : CoocMatrix, testKb: CoocMatrix) : Unit = {
+    print(s"Test nnz : ${testKb.nnz()}")
     var result = model.similaritiesAndLabels(trainKb, testKb)
     println("Initial MAP: " + Evaluator.meanAveragePrecision(result))
 
@@ -193,7 +196,7 @@ object ExportData  extends TrainTestTacData {
   def main(args: Array[String]): Unit = {
     opts.parse(args)
 
-    val kb = TransEKBMatrix.fromTsv(opts.tacData.value, opts.colsPerEnt.value).pruneWithEntities(2,1)
+    val kb = TransEKBMatrix.fromTsv(opts.tacData.value, opts.colsPerEnt.value).prune(opts.minRowPrune.value, opts.minColPrune.value)
     println("Stats:")
     println("Num Rows:" + kb.numRows())
     println("Num Cols:" + kb.numCols())
@@ -216,8 +219,7 @@ object TrainTestTacData  extends TrainTestTacData{
   def main(args: Array[String]) : Unit = {
       opts.parse(args)
       val tReadStart = System.currentTimeMillis
-//      val kb = EntityRelationKBMatrix.fromTsv(opts.tacData.value).prune(2,1)
-      val kb = StringStringKBMatrix.fromTsv(opts.tacData.value, opts.colsPerEnt.value).prune(2,1)
+      val kb = StringStringKBMatrix.fromTsv(opts.tacData.value, opts.colsPerEnt.value).prune(opts.minRowPrune.value, opts.minColPrune.value)
       val tRead = (System.currentTimeMillis - tReadStart)/1000.0
       println(f"Reading from file and pruning took $tRead%.2f s")
 
@@ -274,7 +276,7 @@ object TrainTestTacDataAdaGrad  extends TrainTestTacData{
     opts.parse(args)
 
     val tReadStart = System.currentTimeMillis
-    val kb = StringStringKBMatrix.fromTsv(opts.tacData.value, opts.colsPerEnt.value).prune(2,1)
+    val kb = StringStringKBMatrix.fromTsv(opts.tacData.value, opts.colsPerEnt.value).prune(opts.minRowPrune.value, opts.minColPrune.value)
     val tRead = (System.currentTimeMillis - tReadStart)/1000.0
     println(f"Reading from file and pruning took $tRead%.2f s")
 
@@ -305,7 +307,7 @@ class TrainTestTacDataCol(scroreType : String) extends TrainTestTacData{
     opts.parse(args)
 
     val tReadStart = System.currentTimeMillis
-    val kb = StringStringKBMatrix.fromTsv(opts.tacData.value, opts.colsPerEnt.value).prune(2,1)
+    val kb = StringStringKBMatrix.fromTsv(opts.tacData.value, opts.colsPerEnt.value).prune(opts.minRowPrune.value, opts.minColPrune.value)
     val tRead = (System.currentTimeMillis - tReadStart)/1000.0
     println(f"Reading from file and pruning took $tRead%.2f s")
 
@@ -342,7 +344,7 @@ object TrainTestTacDataTransE extends TrainTestTacData{
     opts.parse(args)
 
     val tReadStart = System.currentTimeMillis
-    val kb = TransEKBMatrix.fromTsv(opts.tacData.value, opts.colsPerEnt.value).prune(2,1)
+    val kb = TransEKBMatrix.fromTsv(opts.tacData.value, opts.colsPerEnt.value).prune(opts.minRowPrune.value, opts.minColPrune.value)
     val tRead = (System.currentTimeMillis - tReadStart)/1000.0
     println(f"Reading from file and pruning took $tRead%.2f s")
 

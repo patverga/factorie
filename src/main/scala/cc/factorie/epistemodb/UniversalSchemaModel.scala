@@ -231,10 +231,7 @@ extends MatrixModel with Parameters {
     val ents = rowToEnts(row)
     similarity01(ents._1, ents._2, col)
   }
-
 }
-
-
 object TransEModel {
   def randomModel(numCols:Int, entityMap: BiMap[Int, (Int, Int)], dim: Int, random: Random = new Random(0)): TransEModel = {
     val scale = 1.0 / dim
