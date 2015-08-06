@@ -293,6 +293,13 @@ class ColumnAverageModel(val rowToCols : Map[Int, Seq[Int]], __colVectors: Index
 
   def similarity01(row: Int, col: Int): Double = {
     score(colVectors(col).value, rowToCols(row).map(colVectors(_).value))
+//    // average then cosine
+//    val target = colVectors(col).value
+//    val colVecs = rowToCols(row).map(colVectors(_).value)
+//    val avgCol = new DenseTensor1(target.size, 0)
+//    rowToCols(row).foreach(avgCol+=colVectors(_).value)
+//    avgCol /= rowToCols(row).size
+//    avgCol.cosineSimilarity(target)
   }
 
   def score(targetCol : Tensor, otherCols : Seq[Tensor]): Double = {

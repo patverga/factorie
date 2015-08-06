@@ -83,13 +83,9 @@ abstract class BprTrainer {
       //println("... done.")
 
       Threading.parForeach(batchedCells, pool)(cellBatch => {
-        // Take a sliding window of two rows, and do bpr update.
-        val thisObjective = cellBatch.foldLeft(0.0)((obj, cell) =>
+        objective += cellBatch.foldLeft(0.0)((obj, cell) =>
           obj + updateBprCells(cell._1, random.nextInt(matrix.numRows()), cell._2)
         )
-        // For non-bpr this would be:
-        //val thisObjective = exs.foldLeft(0.0)((b, a) => b + updateOnRow(a._1, a._2, stepsize))
-        objective += thisObjective
       })
       if (t == printNext || t == 0 || t == numIters - 1) {
         println("finished iter " + t + " objective = " + objective / matrix.rowToColAndVal.size)
