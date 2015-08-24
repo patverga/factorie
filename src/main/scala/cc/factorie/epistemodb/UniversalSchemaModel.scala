@@ -1,6 +1,7 @@
 package cc.factorie.epistemodb
 
 import java.io.{File, PrintWriter}
+import java.util
 
 import com.mongodb.DB
 import cc.factorie.la.{Tensor, Tensor1, DenseTensor1}
@@ -330,5 +331,42 @@ object ColumnAverageModel{
     //def initVector(i: Int): Array[Double] = Array.fill[Double](latentDimensionality)(2*random.nextDouble() - 1.0)
     val colVectors = (0 until numCols).map(i => new DenseTensor1(initVector))
     new ColumnAverageModel(rowToCols, colVectors, numCols, scoreType)
+  }
+}
+
+class UniversalWordEmbeddingModel(val colToTokens : Map[Int, Seq[Int]], __rowVectors: IndexedSeq[DenseTensor1], __colVectors: IndexedSeq[DenseTensor1])
+  extends MatrixModel with Parameters {
+
+  val rowVectors : IndexedSeq[Weights] = __rowVectors.map(this.Weights(_))
+  val colVectors : IndexedSeq[Weights] = __colVectors.map(this.Weights(_))
+
+  def similarity01(row: Int, col: Int): Double = {
+//    score(rowVectors(row).value, colToTokens(col).map(colVectors(_).value))
+    // average then cosine
+
+    val target = rowVectors(row).value
+    val tokenVecs = colToTokens(col).map(colVectors(_).value)
+    val avgCol = new DenseTensor1(target.size, 0)
+    tokenVecs.foreach(v => avgCol+=v)
+    avgCol /= tokenVecs.size
+    avgCol.cosineSimilarity(target)
+  }
+
+  def score(rowVector : Tensor, tokenVectors : Seq[Tensor]): Double = {
+    val values = tokenVectors.map(tokenVector => rowVector.dot(tokenVector))
+    if (values.isEmpty)
+      0.0
+    else
+      values.sum / values.size
+  }
+}
+object UniversalWordEmbeddingModel{
+  def randomModel(colToTokens : Map[Int, Seq[Int]], numRows : Int, numCols : Int, dim: Int, random: Random = new Random(0))
+  : UniversalWordEmbeddingModel = {
+    val scale = 1.0 / dim
+    def initVector(): Array[Double] = Array.fill[Double](dim)(scale * random.nextGaussian())
+    val rowVectors = (0 until numRows).map(i => new DenseTensor1(initVector))
+    val colVectors = (0 until numCols).map(i => new DenseTensor1(initVector))
+    new UniversalWordEmbeddingModel(colToTokens, rowVectors, colVectors)
   }
 }

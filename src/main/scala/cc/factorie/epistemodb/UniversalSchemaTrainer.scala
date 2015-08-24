@@ -209,18 +209,18 @@ BprTrainer {
   }
 }
 
-class ColumnAverageExample(posColVec : Weights, negColVec : Weights, sharedRowVecs : Seq[Weights], var factor : Double) extends Example {
+class vectorAverageExample(posVec : Weights, negVec : Weights, averagedVecs : Seq[Weights], var factor : Double) extends Example {
 
   def accumulateValueAndGradient(value: DoubleAccumulator, gradient: WeightsMapAccumulator): Unit = {
 
-//    factor = factor / math.max(1.0, sharedRowVecs.size)
-    sharedRowVecs.foreach(colVec =>
+    factor = factor / math.max(1.0, averagedVecs.size)
+    averagedVecs.foreach(targetVec =>
     {
-      gradient.accumulate(posColVec, colVec.value, factor)
-      gradient.accumulate(colVec, posColVec.value, factor)
+      gradient.accumulate(posVec, targetVec.value, factor)
+      gradient.accumulate(targetVec, posVec.value, factor)
 
-      gradient.accumulate(negColVec, colVec.value, -factor)
-      gradient.accumulate(colVec, negColVec.value, -factor)
+      gradient.accumulate(negVec, targetVec.value, -factor)
+      gradient.accumulate(targetVec, negVec.value, -factor)
     })
   }
 }
@@ -252,7 +252,7 @@ BprTrainer {
         val diff = scoreTrueCell - scoreFalseCell - margin
         val objective = 1 - (1 / (1 + math.exp(-diff)))
         val factor = if(objective > 0.0) 1.0 else 0.0
-        (new ColumnAverageExample(posColVec, negColVec, sharedRowVecs, factor), objective)
+        (new vectorAverageExample(posColVec, negColVec, sharedRowVecs, factor), objective)
       case "max" =>
         val scoreTrueCell = model.scoreAndMax(posColVec.value, sharedRowVecs.map(_.value))
         val scoreFalseCell = model.scoreAndMax(negColVec.value, sharedRowVecs.map(_.value))
@@ -263,6 +263,33 @@ BprTrainer {
         (new UniversalSchemaExample(posColVec, negColVec, maxOtherColVec, factor), objective)
       case _ => throw new NotImplementedError(s"${model.scoreType} is not a valid score type")
     }
+    trainer.processExample(ex)
+    objective
+  }
+}
+
+class UniversalWordEmbeddingTrainer(val regularizer: Double, val stepsize: Double, val dim: Int, val margin : Double,
+                           val matrix: CoocMatrix, val model: UniversalWordEmbeddingModel, val random: Random) extends
+BprTrainer {
+
+
+  val optimizer = new AdaGradRDA(delta = 0.01 , rate = stepsize, l2 = regularizer)
+  val trainer = new LiteHogwildTrainer(weightsSet = model.parameters, optimizer = optimizer, maxIterations = Int.MaxValue)
+  optimizer.initializeWeights(model.parameters)
+
+
+  override def updateBprCells(rowIndexTrue: Int, rowIndexFalse: Int, colIndex: Int): Double =
+  {
+    val posRowVec = model.rowVectors(rowIndexTrue)
+    val negRowVec = model.rowVectors(rowIndexFalse)
+    val tokenVecs = model.colToTokens(colIndex).map(model.colVectors(_))
+
+    val scoreTrueCell = model.score(posRowVec.value, tokenVecs.map(_.value))
+    val scoreFalseCell = model.score(negRowVec.value, tokenVecs.map(_.value))
+    val diff = scoreTrueCell - scoreFalseCell - margin
+    val objective = 1 - (1 / (1 + math.exp(-diff)))
+    val factor = if (objective > 0.0) 1.0 else 0.0
+    val ex = new vectorAverageExample(posRowVec, negRowVec, tokenVecs, factor)
     trainer.processExample(ex)
     objective
   }

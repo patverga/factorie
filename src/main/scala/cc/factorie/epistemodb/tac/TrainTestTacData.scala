@@ -1,10 +1,12 @@
 package cc.factorie.epistemodb.tac
 
 import java.io.{File, PrintWriter}
+import java.util
 
 import cc.factorie.la.{Tensor, DenseTensor1, DenseTensor}
 import com.google.common.collect.HashBiMap
 
+import scala.collection.JavaConversions._
 import scala.collection.Iterable
 import scala.io.Source
 import scala.util.Random
@@ -24,6 +26,7 @@ class TrainTestTacDataOptions extends cc.factorie.util.DefaultCmdOptions {
   val useMaxNorm =  new CmdOption("use-max-norm", true, "BOOLEAN", "whether to use maximum l2-norm for vectors")
   val minRowPrune = new CmdOption("row-min", 2, "INT", "minimum number of non-zero cells for a row to not be pruned")
   val minColPrune = new CmdOption("col-min", 1, "INT", "minimum number of non-zero cells for a col to not be pruned")
+  val numTest = new CmdOption("num-test", 10000, "INT", "number of test cells to take")
   val regularizer = new CmdOption("regularizer", 0.01, "DOUBLE", "regularizer")
   val patternsOut = new CmdOption("patterns-out", "", "FILE", "Top-scored columns, for test columns.")
   val exportData = new CmdOption("export-data", false, "BOOLEAN", "export train and test data to file.")
@@ -108,6 +111,7 @@ TrainTestTacData {
     result = model.similaritiesAndLabels(trainKb, testKb)
     println("MAP after 200 iterations: " + Evaluator.meanAveragePrecision(result))
   }
+
 
   def exportTrainMatrix(trainKb : StringStringKBMatrix): Unit ={
     // non zero row / col cells as ints
@@ -204,14 +208,13 @@ object ExportData  extends TrainTestTacData {
 
     val random = new Random(0)
     val numDev = 0
-    val numTest = 10000
+    val numTest = opts.numTest.value
     val (trainKb, _, testKb) = kb.randomTestSplit(numDev, numTest, None, Some(testCols), random)
 
     // export training matrix
     exportTransETrainMatrix(trainKb)
     // export test matrix
     exportTransETestMatrix(trainKb, testKb)
-
   }
 }
 
@@ -230,7 +233,7 @@ object TrainTestTacData  extends TrainTestTacData{
 
       val random = new Random(0)
       val numDev = 0
-      val numTest = 10000
+      val numTest = opts.numTest.value
 
       val (trainKb, devKb, testKb) = kb.randomTestSplit(numDev, numTest, None, Some(testCols), random)
 
@@ -287,7 +290,7 @@ object TrainTestTacDataAdaGrad  extends TrainTestTacData{
 
     val random = new Random(0)
     val numDev = 0
-    val numTest = 10000
+    val numTest = opts.numTest.value
     val (trainKb, devKb, testKb) = kb.randomTestSplit(numDev, numTest, None, Some(testCols), random)
 
     val model = UniversalSchemaAdaGradModel.randomModel(kb.numRows(), kb.numCols(), opts.dim.value, random)
@@ -318,7 +321,7 @@ class TrainTestTacDataCol(scroreType : String) extends TrainTestTacData{
 
     val random = new Random(0)
     val numDev = 0
-    val numTest = 10000
+    val numTest = opts.numTest.value
     val (trainKb, devKb, testKb) = kb.randomTestSplit(numDev, numTest, None, Some(testCols), random)
     val rowToCols = trainKb.matrix.rowToColAndVal.map{ case (row, cols) => row -> cols.keys.toIndexedSeq}.toMap
     val model = if (opts.loadModel.value != "") {
@@ -334,6 +337,55 @@ class TrainTestTacDataCol(scroreType : String) extends TrainTestTacData{
 
     if( opts.exportEmbeddings.value != ""){
       new File(opts.exportEmbeddings.value).mkdirs()
+      exportEmbeddings(model.colVectors.map(_.value), opts.exportEmbeddings.value +"/col.embeddings")
+    }
+  }
+}
+
+object TrainTestTacDataWordEmbed extends TrainTestTacData{
+  def main(args: Array[String]) : Unit = {
+    opts.parse(args)
+
+    val tReadStart = System.currentTimeMillis
+    val kb = StringStringKBMatrix.fromTsv(opts.tacData.value, opts.colsPerEnt.value).prune(opts.minRowPrune.value, opts.minColPrune.value)
+    val tRead = (System.currentTimeMillis - tReadStart)/1000.0
+    println(f"Reading from file and pruning took $tRead%.2f s")
+
+    println("Stats:")
+    println("Num Rows:" + kb.numRows())
+    println("Num Cols:" + kb.numCols())
+    println("Num cells:" + kb.nnz())
+
+    val random = new Random(0)
+    val numDev = 0
+    val numTest = opts.numTest.value
+    val (trainKb, devKb, testKb) = kb.randomTestSplit(numDev, numTest, None, Some(testCols), random)
+//    val colToWords = trainKb.matrix.rowToColAndVal.map{ case (row, cols) => row -> cols.keys.toIndexedSeq}.toMap
+    val tokenMap = new util.HashMap[String, Int]()
+    val colToTokens = trainKb.__colMap.keyIterator.map(colStr => {
+      val colDex = trainKb.__colMap.keyToIndex(colStr)
+      val tokenIndices = colStr.split(" ").map{token =>
+        if (!tokenMap.containsKey(token)) tokenMap.put(token, tokenMap.size())
+        tokenMap.get(token)
+      }
+      colDex -> tokenIndices.toSeq
+    }).toMap
+    val model = if (opts.loadModel.value != "") {
+      val rowEmbeddings = loadEmbeddings(opts.loadModel.value + "/row.embeddings")
+//      val colEmbeddings = loadEmbeddings(opts.loadModel.value + "/col.embeddings")
+      val colEmbeddings = (0 until tokenMap.size()).map(i => new DenseTensor1(UniversalSchemaModel.initVector(opts.dim.value)))
+      new UniversalWordEmbeddingModel(colToTokens, rowEmbeddings, colEmbeddings)
+    }
+    else UniversalWordEmbeddingModel.randomModel(colToTokens, tokenMap.size(), kb.numRows(), opts.dim.value, random)
+
+    val trainer = new UniversalWordEmbeddingTrainer(opts.regularizer.value, opts.stepsize.value, opts.dim.value,
+      opts.margin.value, trainKb.matrix, model, random)
+
+    evaluate(model, trainer, trainKb.matrix, testKb.matrix)
+
+    if( opts.exportEmbeddings.value != ""){
+      new File(opts.exportEmbeddings.value).mkdirs()
+      exportEmbeddings(model.colVectors.map(_.value), opts.exportEmbeddings.value +"/rel.embeddings")
       exportEmbeddings(model.colVectors.map(_.value), opts.exportEmbeddings.value +"/col.embeddings")
     }
   }
@@ -355,7 +407,7 @@ object TrainTestTacDataTransE extends TrainTestTacData{
 
     val random = new Random(0)
     val numDev = 0
-    val numTest = 10000
+    val numTest = opts.numTest.value
     val (trainKb, devKb, testKb) = kb.randomTestSplit(numDev, numTest, None, Some(testCols), random)
 
     val rowToEnts = kb.matrix.rowEntsBimap
