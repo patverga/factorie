@@ -147,14 +147,21 @@ TrainTestTacData {
 
   def exportTransETrainMatrix(trainKb : TransEKBMatrix): Unit ={
     // non zero row / col cells as ints
-    var writer = new PrintWriter("train.mtx")
+    val intWriter = new PrintWriter("train-mtx.ints")
+    val stringWriter = new PrintWriter("train-mtx.strings")
     trainKb.matrix.getNnzCells().foreach(t => {
       val (e1, e2) = trainKb.matrix.rowEntsBimap.get(t._1)
-      writer.println(s"$e1\t$e2\t${t._1}\t${t._2}")
+      val rowStr = trainKb.__rowMap.indexToKey(t._1)
+//      val e2Str = trainKb.__entityMap.indexToKey(e2)
+      val colStr = trainKb.__colMap.indexToKey(t._2)
+//      stringWriter.println(s"$e1Str\t$e2Str\t$colStr")
+      stringWriter.println(s"${rowStr.e1}\t${rowStr.e2}\t$colStr\t1")
+      intWriter.println(s"$e1\t$e2\t${t._1}\t${t._2}")
     })
-    writer.close()
+    stringWriter.close()
+    intWriter.close()
     // row -> string map
-    writer = new PrintWriter("row-map.tsv")
+    var writer = new PrintWriter("row-map.tsv")
     trainKb.__rowMap.keyIterator.foreach(key => writer.println(s"${trainKb.__rowMap.keyToIndex(key)}\t$key"))
     writer.close()
     // col -> string map
@@ -168,17 +175,26 @@ TrainTestTacData {
       case Some(cols) => cols
       case None => testMatrix.matrix.nonZeroCols()
     }
-    new File("test-mtx").mkdir()
+    new File("test-mtx/ints/").mkdirs()
+    new File("test-mtx/strings/").mkdirs()
     columns.par.foreach(col => {
-      val writer = new PrintWriter(s"test-mtx/$col-test.mtx")
-      for (row <- 0 until testMatrix.numRows();
+      val intWriter = new PrintWriter(s"test-mtx/ints/$col-test.mtx")
+      val stringWriter = new PrintWriter(s"test-mtx/strings/$col-test.mtx")
+      for (row <- 0 until testMatrix.numRows()
            if trainDevMatrix.matrix.get(row, col) == 0) yield {
         val isTrueTest = testMatrix.matrix.get(row, col) != 0
         // convert test row / col to train row/col
         val (e1, e2) = trainDevMatrix.matrix.rowEntsBimap.get(row)
-        writer.write(s"$e1\t$e2\t$row\t$col\t${if (isTrueTest) 1 else 0}\n")
+//        val e1Str = trainDevMatrix.__entityMap.indexToKey(e1)
+//        val e2Str = trainDevMatrix.__entityMap.indexToKey(e2)
+        val rowStr = trainDevMatrix.__rowMap.indexToKey(row)
+        val colStr = trainDevMatrix.__colMap.indexToKey(col)
+        intWriter.write(s"$e1\t$e2\t$row\t$col\t${if (isTrueTest) 1 else 0}\n")
+//        stringWriter.write(s"$e1Str\t$e2Str\t$colStr\t${if (isTrueTest) 1 else 0}\n")
+        stringWriter.write(s"${rowStr.e1}\t${rowStr.e2}\t$colStr\t${if (isTrueTest) 1 else 0}\n")
       }
-      writer.close()
+      intWriter.close()
+      stringWriter.close()
     })
   }
 
