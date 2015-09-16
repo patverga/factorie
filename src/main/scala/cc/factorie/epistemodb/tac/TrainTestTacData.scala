@@ -29,7 +29,7 @@ class TrainTestTacDataOptions extends cc.factorie.util.DefaultCmdOptions {
   val numTest = new CmdOption("num-test", 10000, "INT", "number of test cells to take")
   val regularizer = new CmdOption("regularizer", 0.01, "DOUBLE", "regularizer")
   val patternsOut = new CmdOption("patterns-out", "", "FILE", "Top-scored columns, for test columns.")
-  val exportData = new CmdOption("export-data", false, "BOOLEAN", "export train and test data to file.")
+  val exportData = new CmdOption("export-data", "", "STRING", "export train and test data to file.")
   val exportEmbeddings = new CmdOption("export-model", "", "STRING", "export embeddings to this directory.")
   val loadModel = new CmdOption("load-model", "", "STRING", "load embeddings from file")
   val testColFile = new CmdOption("test-col-file", "", "STRING", "file containing string names of the test columns to use")
@@ -145,10 +145,11 @@ TrainTestTacData {
     })
   }
 
-  def exportTransETrainMatrix(trainKb : TransEKBMatrix): Unit ={
+  def exportTransETrainMatrix(trainKb : TransEKBMatrix, exportDir : String): Unit ={
     // non zero row / col cells as ints
-    val intWriter = new PrintWriter("train-mtx.ints")
-    val stringWriter = new PrintWriter("train-mtx.strings")
+    new File(exportDir).mkdirs()
+    val intWriter = new PrintWriter(s"$exportDir/train-mtx.ints")
+    val stringWriter = new PrintWriter(s"$exportDir/train-mtx.strings")
     trainKb.matrix.getNnzCells().foreach(t => {
       val (e1, e2) = trainKb.matrix.rowEntsBimap.get(t._1)
       val rowStr = trainKb.__rowMap.indexToKey(t._1)
@@ -161,25 +162,25 @@ TrainTestTacData {
     stringWriter.close()
     intWriter.close()
     // row -> string map
-    var writer = new PrintWriter("row-map.tsv")
+    var writer = new PrintWriter(s"$exportDir/row-map.tsv")
     trainKb.__rowMap.keyIterator.foreach(key => writer.println(s"${trainKb.__rowMap.keyToIndex(key)}\t$key"))
     writer.close()
     // col -> string map
-    writer = new PrintWriter("col-map.tsv")
+    writer = new PrintWriter(s"$exportDir/col-map.tsv")
     trainKb.__colMap.keyIterator.foreach(key => writer.println(s"${trainKb.__colMap.keyToIndex(key)}\t$key"))
     writer.close()
   }
 
-  def exportTransETestMatrix(trainDevMatrix: TransEKBMatrix, testMatrix: TransEKBMatrix, testCols: Option[Set[Int]] = None) ={
+  def exportTransETestMatrix(trainDevMatrix: TransEKBMatrix, testMatrix: TransEKBMatrix, exportDir : String, testCols: Option[Set[Int]] = None) ={
     val columns = testCols match {
       case Some(cols) => cols
       case None => testMatrix.matrix.nonZeroCols()
     }
-    new File("test-mtx/ints/").mkdirs()
-    new File("test-mtx/strings/").mkdirs()
+    new File("exportDir/test-mtx/ints/").mkdirs()
+    new File("exportDir/test-mtx/strings/").mkdirs()
     columns.par.foreach(col => {
-      val intWriter = new PrintWriter(s"test-mtx/ints/$col-test.mtx")
-      val stringWriter = new PrintWriter(s"test-mtx/strings/$col-test.mtx")
+      val intWriter = new PrintWriter(s"exportDir/test-mtx/ints/$col-test.mtx")
+      val stringWriter = new PrintWriter(s"exportDir/test-mtx/strings/$col-test.mtx")
       for (row <- 0 until testMatrix.numRows()
            if trainDevMatrix.matrix.get(row, col) == 0) yield {
         val isTrueTest = testMatrix.matrix.get(row, col) != 0
@@ -228,9 +229,9 @@ object ExportData  extends TrainTestTacData {
     val (trainKb, _, testKb) = kb.randomTestSplit(numDev, numTest, None, Some(testCols), random)
 
     // export training matrix
-    exportTransETrainMatrix(trainKb)
+    exportTransETrainMatrix(trainKb, opts.exportData.value)
     // export test matrix
-    exportTransETestMatrix(trainKb, testKb)
+    exportTransETestMatrix(trainKb, testKb, opts.exportData.value)
   }
 }
 
@@ -278,7 +279,7 @@ object TrainTestTacData  extends TrainTestTacData{
       if (!opts.patternsOut.value.isEmpty) {
         kb.writeTopPatterns(testCols, model, 0.5, opts.patternsOut.value)
       }
-      if (opts.exportData.value) {
+      if (opts.exportData.wasInvoked) {
         exportTrainMatrix(trainKb)
         exportTestMatrix(trainKb, testKb)
       }
@@ -434,9 +435,9 @@ object TrainTestTacDataTransE extends TrainTestTacData{
     evaluate(model, trainer, trainKb.matrix, testKb.matrix)
 
 
-    if (opts.exportData.value) {
-      exportTransETrainMatrix(trainKb)
-      exportTransETestMatrix(trainKb, testKb)
+    if (opts.exportData.wasInvoked) {
+      exportTransETrainMatrix(trainKb, opts.exportData.value)
+      exportTransETestMatrix(trainKb, testKb, opts.exportData.value)
     }
   }
 }
