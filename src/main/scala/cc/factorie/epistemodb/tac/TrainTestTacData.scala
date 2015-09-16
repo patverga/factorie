@@ -176,11 +176,11 @@ TrainTestTacData {
       case Some(cols) => cols
       case None => testMatrix.matrix.nonZeroCols()
     }
-    new File("exportDir/test-mtx/ints/").mkdirs()
-    new File("exportDir/test-mtx/strings/").mkdirs()
+    new File(s"$exportDir/test-mtx/ints/").mkdirs()
+    new File(s"$exportDir/test-mtx/strings/").mkdirs()
     columns.par.foreach(col => {
-      val intWriter = new PrintWriter(s"exportDir/test-mtx/ints/$col-test.mtx")
-      val stringWriter = new PrintWriter(s"exportDir/test-mtx/strings/$col-test.mtx")
+      val intWriter = new PrintWriter(s"$exportDir/test-mtx/ints/$col-test.mtx")
+      val stringWriter = new PrintWriter(s"$exportDir/test-mtx/strings/$col-test.mtx")
       for (row <- 0 until testMatrix.numRows()
            if trainDevMatrix.matrix.get(row, col) == 0) yield {
         val isTrueTest = testMatrix.matrix.get(row, col) != 0
