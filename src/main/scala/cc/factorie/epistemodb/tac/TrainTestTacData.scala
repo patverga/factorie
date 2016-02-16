@@ -26,6 +26,7 @@ class TrainTestTacDataOptions extends cc.factorie.util.DefaultCmdOptions {
   val useMaxNorm =  new CmdOption("use-max-norm", true, "BOOLEAN", "whether to use maximum l2-norm for vectors")
   val minRowPrune = new CmdOption("row-min", 2, "INT", "minimum number of non-zero cells for a row to not be pruned")
   val minColPrune = new CmdOption("col-min", 1, "INT", "minimum number of non-zero cells for a col to not be pruned")
+  val numDev = new CmdOption("num-dev", 0, "INT", "number of test cells to take")
   val numTest = new CmdOption("num-test", 10000, "INT", "number of test cells to take")
   val regularizer = new CmdOption("regularizer", 0.01, "DOUBLE", "regularizer")
   val patternsOut = new CmdOption("patterns-out", "", "FILE", "Top-scored columns, for test columns.")
@@ -171,16 +172,17 @@ TrainTestTacData {
     writer.close()
   }
 
-  def exportTransETestMatrix(trainDevMatrix: TransEKBMatrix, testMatrix: TransEKBMatrix, exportDir : String, testCols: Option[Set[Int]] = None) ={
+  def exportTransETestMatrix(trainDevMatrix: TransEKBMatrix, testMatrix: TransEKBMatrix, exportDir : String,
+                             testCols: Option[Set[Int]] = None, subDir : String = "test-mtx") ={
     val columns = testCols match {
       case Some(cols) => cols
       case None => testMatrix.matrix.nonZeroCols()
     }
-    new File(s"$exportDir/test-mtx/ints/").mkdirs()
-    new File(s"$exportDir/test-mtx/strings/").mkdirs()
+    new File(s"$exportDir/$subDir/ints/").mkdirs()
+    new File(s"$exportDir/$subDir/strings/").mkdirs()
     columns.par.foreach(col => {
-      val intWriter = new PrintWriter(s"$exportDir/test-mtx/ints/$col-test.mtx")
-      val stringWriter = new PrintWriter(s"$exportDir/test-mtx/strings/$col-test.mtx")
+      val intWriter = new PrintWriter(s"$exportDir/$subDir/ints/$col-test.mtx")
+      val stringWriter = new PrintWriter(s"$exportDir/$subDir/strings/$col-test.mtx")
       for (row <- 0 until testMatrix.numRows()
            if trainDevMatrix.matrix.get(row, col) == 0) yield {
         val isTrueTest = testMatrix.matrix.get(row, col) != 0
@@ -224,14 +226,16 @@ object ExportData  extends TrainTestTacData {
     println("Num cells:" + kb.nnz())
 
     val random = new Random(0)
-    val numDev = 0
+    val numDev = opts.numDev.value
     val numTest = opts.numTest.value
-    val (trainKb, _, testKb) = kb.randomTestSplit(numDev, numTest, None, Some(testCols), random)
+    val (trainKb, devKb, testKb) = kb.randomTestSplit(numDev, numTest, None, Some(testCols), random)
 
     // export training matrix
     exportTransETrainMatrix(trainKb, opts.exportData.value)
+    // export dev matrix
+    exportTransETestMatrix(trainKb, devKb, opts.exportData.value, subDir = "dev-mtx")
     // export test matrix
-    exportTransETestMatrix(trainKb, testKb, opts.exportData.value)
+    exportTransETestMatrix(trainKb, testKb, opts.exportData.value, subDir = "test-mtx")
   }
 }
 
@@ -249,7 +253,7 @@ object TrainTestTacData  extends TrainTestTacData{
       println("Num cells:" + kb.nnz())
 
       val random = new Random(0)
-      val numDev = 0
+    val numDev = opts.numDev.value
       val numTest = opts.numTest.value
 
       val (trainKb, devKb, testKb) = kb.randomTestSplit(numDev, numTest, None, Some(testCols), random)
@@ -306,7 +310,7 @@ object TrainTestTacDataAdaGrad  extends TrainTestTacData{
     println("Num cells:" + kb.nnz())
 
     val random = new Random(0)
-    val numDev = 0
+    val numDev = opts.numDev.value
     val numTest = opts.numTest.value
     val (trainKb, devKb, testKb) = kb.randomTestSplit(numDev, numTest, None, Some(testCols), random)
 
@@ -337,7 +341,7 @@ class TrainTestTacDataCol(scroreType : String) extends TrainTestTacData{
     println("Num cells:" + kb.nnz())
 
     val random = new Random(0)
-    val numDev = 0
+    val numDev = opts.numDev.value
     val numTest = opts.numTest.value
     val (trainKb, devKb, testKb) = kb.randomTestSplit(numDev, numTest, None, Some(testCols), random)
     val rowToCols = trainKb.matrix.rowToColAndVal.map{ case (row, cols) => row -> cols.keys.toIndexedSeq}.toMap
@@ -374,7 +378,7 @@ object TrainTestTacDataWordEmbed extends TrainTestTacData{
     println("Num cells:" + kb.nnz())
 
     val random = new Random(0)
-    val numDev = 0
+    val numDev = opts.numDev.value
     val numTest = opts.numTest.value
     val (trainKb, devKb, testKb) = kb.randomTestSplit(numDev, numTest, None, Some(testCols), random)
 //    val colToWords = trainKb.matrix.rowToColAndVal.map{ case (row, cols) => row -> cols.keys.toIndexedSeq}.toMap
@@ -423,7 +427,7 @@ object TrainTestTacDataTransE extends TrainTestTacData{
     println("Num cells:" + kb.nnz())
 
     val random = new Random(0)
-    val numDev = 0
+    val numDev = opts.numDev.value
     val numTest = opts.numTest.value
     val (trainKb, devKb, testKb) = kb.randomTestSplit(numDev, numTest, None, Some(testCols), random)
 
